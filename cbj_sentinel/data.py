@@ -466,6 +466,13 @@ def parse_shot_chart(pbp: Dict[str, Any], team_id: int = 29, team_abbrev: str = 
     is_home_target = (home_id == team_id or home_abbrev == team_abbrev)
     target_id = home_id if is_home_target else away_id
     opp_abbrev = (away_abbrev if is_home_target else home_abbrev) or "OPP"
+    game_date = pbp.get("gameDate", "")
+    home_sc = home.get("score", 0)
+    away_sc = away.get("score", 0)
+    venue_name = (pbp.get("venue") or {}).get("default", "")
+    matchup = f"{away_abbrev} @ {home_abbrev}" if away_abbrev and home_abbrev else ""
+    target_score = home_sc if is_home_target else away_sc
+    opp_score = away_sc if is_home_target else home_sc
 
     shots: List[Dict[str, Any]] = []
     target_sog = 0
@@ -522,6 +529,10 @@ def parse_shot_chart(pbp: Dict[str, Any], team_id: int = 29, team_abbrev: str = 
         period_desc = p.get("periodDescriptor") or {}
         shots.append({
             "id": p.get("eventId", 0),
+            "game_id": pbp.get("id"),
+            "game_date": game_date,
+            "matchup": matchup,
+            "opponent": opp_abbrev,
             "period": period_desc.get("number", 1),
             "time": p.get("timeInPeriod", ""),
             "type": type_key,
@@ -537,7 +548,13 @@ def parse_shot_chart(pbp: Dict[str, Any], team_id: int = 29, team_abbrev: str = 
 
     return {
         "game_id": pbp.get("id"),
+        "game_date": game_date,
+        "matchup": matchup,
         "opponent": opp_abbrev,
+        "venue": venue_name,
+        "target_score": target_score,
+        "opp_score": opp_score,
+        "is_home": is_home_target,
         "counts": {
             "target_sog": target_sog,
             "target_goals": target_goals,
@@ -546,6 +563,49 @@ def parse_shot_chart(pbp: Dict[str, Any], team_id: int = 29, team_abbrev: str = 
             "total_shots": len(shots),
         },
         "shots": shots,
+    }
+
+
+def combine_shot_charts(charts: List[Dict[str, Any]], target_abbrev: str = "CBJ") -> Dict[str, Any]:
+    """Aggregate multiple game shot charts into a combined multi-game heatmap dataset."""
+    combined_shots: List[Dict[str, Any]] = []
+    t_sog = 0
+    t_goals = 0
+    o_sog = 0
+    o_goals = 0
+    valid_charts = [c for c in charts if c and c.get("shots")]
+
+    for c in valid_charts:
+        combined_shots.extend(c.get("shots", []))
+        counts = c.get("counts", {})
+        t_sog += counts.get("target_sog", 0)
+        t_goals += counts.get("target_goals", 0)
+        o_sog += counts.get("opp_sog", 0)
+        o_goals += counts.get("opp_goals", 0)
+
+    t_sh_pct = round((t_goals / t_sog * 100.0), 1) if t_sog > 0 else 0.0
+    o_sh_pct = round((o_goals / o_sog * 100.0), 1) if o_sog > 0 else 0.0
+
+    return {
+        "game_id": "combined",
+        "game_date": "All Games",
+        "matchup": f"All Season Games Combined ({len(valid_charts)} Games)",
+        "opponent": "All Opponents",
+        "venue": "Multiple Venues",
+        "games_count": len(valid_charts),
+        "target_score": t_goals,
+        "opp_score": o_goals,
+        "is_home": True,
+        "counts": {
+            "target_sog": t_sog,
+            "target_goals": t_goals,
+            "opp_sog": o_sog,
+            "opp_goals": o_goals,
+            "total_shots": len(combined_shots),
+            "target_sh_pct": t_sh_pct,
+            "opp_sh_pct": o_sh_pct,
+        },
+        "shots": combined_shots,
     }
 
 

@@ -419,9 +419,12 @@ class TickerBar:
 
 # ---------------------------------------------------------------- app
 class SentinelApp:
-    TABS = (("live", "\U0001F3D2 Live"), ("games", "\U0001F4C5 Games"), ("standings", "\U0001F3C6 Standings"),
-            ("news", "\U0001F4F0 News"), ("roster", "\u2B50 Roster"), ("settings", "\u2699 Settings"))
-    DEPS = {"games": ("schedule", "stats", "landing", "_ui"), "standings": ("standings", "schedule", "_ui"),
+    TABS = (("live", "\U0001F3D2 Live"), ("games", "\U0001F4C5 Games"), ("shots", "\U0001F3AF Shots"),
+            ("standings", "\U0001F3C6 Standings"), ("news", "\U0001F4F0 News"), ("roster", "\u2B50 Roster"),
+            ("settings", "\u2699 Settings"))
+    DEPS = {"games": ("schedule", "stats", "landing", "_ui"),
+            "shots": ("schedule", "landing", "_ui"),
+            "standings": ("standings", "schedule", "_ui"),
             "news": ("news", "schedule", "_ui"), "roster": ("roster", "stats", "boxscore"),
             "settings": ("_settings", "update_info")}
 
@@ -452,6 +455,8 @@ class SentinelApp:
         self.expanded: Optional[int] = None
         self.show_all_games = False
         self.news_filter = "all"
+        self.selected_shot_game_id: Any = "combined"
+        self._batch_fetching_shots = False
         self.revealed: set = set()
         self.goal_tracker = data.GoalTracker()
         self.opp_tracker = data.GoalTracker()
@@ -656,7 +661,7 @@ class SentinelApp:
         self.live_inner = live_inner
 
         self.frames: Dict[str, tk.Frame] = {"live": live_frame}
-        for key in ("games", "standings", "news", "roster", "settings"):
+        for key in ("games", "shots", "standings", "news", "roster", "settings"):
             self.frames[key] = ScrollArea(self.body, self.scroll_canvases)
         for fr in self.frames.values():
             fr.grid(row=0, column=0, sticky="nsew")
@@ -748,14 +753,16 @@ class SentinelApp:
         self.b_reveal = btn(bar, "\U0001F441 Reveal score", self._reveal_current, bg=C.RED)
         self._sync_watch_button()
 
-        # Regulation Ice Rink & Interactive Shot Chart
+        # Regulation Ice Rink & Interactive Shot Chart (dynamically shown during LIVE games)
         self.shot_chart = rink.ShotChart(f, bg=C.CARD)
-        self.shot_chart.pack(fill="x", pady=(0, px(8)))
+        self.b_view_shots = btn(f, "\U0001F3AF View Completed Game Shot Charts & Season Heatmaps \u2192",
+                                lambda: self.switch_tab("shots"), bg="#1a3152", size=8, bold=False)
+        self.b_view_shots.pack(fill="x", pady=(0, px(8)))
 
-        panes = tk.Frame(f, bg=C.BG)
-        panes.pack(fill="both", expand=True)
-        self.t_goals = self._text_pane(panes, "SCORING", 5)
-        self.t_pens = self._text_pane(panes, "PENALTIES", 4)
+        self.panes = tk.Frame(f, bg=C.BG)
+        self.panes.pack(fill="both", expand=True)
+        self.t_goals = self._text_pane(self.panes, "SCORING", 5)
+        self.t_pens = self._text_pane(self.panes, "PENALTIES", 4)
 
     def _text_pane(self, parent, title: str, height: int) -> tk.Text:
         box = tk.Frame(parent, bg=C.CARD)
@@ -789,6 +796,7 @@ class SentinelApp:
         menu = pystray.Menu(
             pystray.MenuItem("Open", go("live"), default=True),
             pystray.MenuItem("Games && Stats", go("games")),   # "&&" = literal & in Windows menus
+            pystray.MenuItem("Shot Charts && Heatmaps", go("shots")),
             pystray.MenuItem("Standings", go("standings")),
             pystray.MenuItem("News", go("news")),
             pystray.MenuItem("Roster", go("roster")),
@@ -999,6 +1007,29 @@ class SentinelApp:
         self._bump("landing")
         self._render_active(force=False)
 
+    def _fetch_all_past_shot_charts(self) -> None:
+        past = data.split_schedule(self.schedule)[0]
+        missing = [int(g["id"]) for g in past if g.get("id") and int(g["id"]) not in self.shot_data]
+        if not missing or getattr(self, "_batch_fetching_shots", False):
+            return
+        self._batch_fetching_shots = True
+
+        def run():
+            try:
+                for gid in missing:
+                    if self.stop_event.is_set():
+                        break
+                    try:
+                        pbp = net.fetch_json(C.URL_PLAY_BY_PLAY.format(game_id=gid))
+                        parsed = data.parse_shot_chart(pbp, C.NHL_TEAM_ID, C.TEAM)
+                        self.post(lambda g=gid, s=parsed: self._store_shot_chart(g, s))
+                    except Exception as exc:
+                        log.warning("Batch shot chart fetch failed for %s: %s", gid, exc)
+            finally:
+                self._batch_fetching_shots = False
+
+        threading.Thread(target=run, name="batch_shots", daemon=True).start()
+
     def _fetch_shot_chart(self, game_id: int) -> None:
         if game_id in self.shot_data:
             return
@@ -1014,14 +1045,13 @@ class SentinelApp:
 
     def _store_shot_chart(self, game_id: int, shots: dict) -> None:
         self.shot_data[game_id] = shots
+        if self.active_tab == "shots":
+            self._bump("_ui")
+            self._render_active(force=False)
         g = self.display_game()
-        if g and int(g.get("id", 0)) == game_id:
+        if g and int(g.get("id", 0)) == game_id and g.get("gameState") in data.LIVE_STATES:
             if not self.spoiler_hidden(g):
-                self.shot_chart.load_shots(shots)
-        else:
-            past = data.split_schedule(self.schedule)[0]
-            if past and int(past[-1].get("id", 0)) == game_id and not self.settings["spoiler_mode"]:
-                self.shot_chart.load_shots(shots)
+                self.shot_chart.load_shots(shots, banner="\U0001F534 LIVE IN-GAME SHOT CHART")
 
     # ------------------------------------------------------------ state
     def _apply(self, snap: Dict[str, Any]) -> None:
@@ -1163,15 +1193,8 @@ class SentinelApp:
         self._set_text(self.t_goals, [], "Scoring plays appear here during games.")
         self._set_text(self.t_pens, [], "Penalties appear here during games.")
         self.b_gc.configure(text="Game preview \u2197")
-        past = data.split_schedule(self.schedule)[0]
-        if past and not self.settings["spoiler_mode"]:
-            last_gid = int(past[-1].get("id") or 0)
-            if last_gid in self.shot_data:
-                self.shot_chart.load_shots(self.shot_data[last_gid])
-            else:
-                self._fetch_shot_chart(last_gid)
-        else:
-            self.shot_chart.load_shots({"shots": [], "counts": {}, "opponent": ""})
+        self.shot_chart.pack_forget()
+        self.b_view_shots.pack(fill="x", pady=(0, px(8)), before=self.panes)
         if nxt:
             gtype = data.GAME_TYPES.get(nxt.get("gameType"), "")
             self.l_title.configure(text=f"NEXT GAME \u00b7 {gtype.upper()}")
@@ -1205,12 +1228,19 @@ class SentinelApp:
         delay = self.settings["delay_seconds"]
         hidden = self.spoiler_hidden(g)
         self._show_reveal(hidden)
-        if hidden:
-            self.shot_chart.load_shots({"shots": [], "counts": {}, "opponent": ""})
-        elif gid in self.shot_data:
-            self.shot_chart.load_shots(self.shot_data[gid])
+
+        if state in data.LIVE_STATES:
+            self.b_view_shots.pack_forget()
+            self.shot_chart.pack(fill="x", pady=(0, px(8)), before=self.panes)
+            if hidden:
+                self.shot_chart.load_shots({"shots": [], "counts": {}, "opponent": ""}, banner="\U0001F534 LIVE IN-GAME SHOT CHART")
+            elif gid in self.shot_data:
+                self.shot_chart.load_shots(self.shot_data[gid], banner="\U0001F534 LIVE IN-GAME SHOT CHART")
+            else:
+                self._fetch_shot_chart(gid)
         else:
-            self._fetch_shot_chart(gid)
+            self.shot_chart.pack_forget()
+            self.b_view_shots.pack(fill="x", pady=(0, px(8)), before=self.panes)
 
         if state in data.LIVE_STATES:
             clock = g.get("clock") or {}
@@ -1512,12 +1542,167 @@ class SentinelApp:
                 lbl(box, "PENALTIES", 8, True, C.SILVER, C.CARD_DEEP).pack(anchor="w", pady=(px(6), 0))
                 for line in pens:
                     tk.Label(box, text=line, fg=C.MUTED, bg=C.CARD_DEEP, font=("Consolas", 8)).pack(anchor="w", padx=px(6))
+        row_btns = tk.Frame(box, bg=C.CARD_DEEP)
+        row_btns.pack(fill="x", pady=(px(6), 0))
+        btn(row_btns, "\U0001F3AF View Shot Chart",
+            lambda: (setattr(self, "selected_shot_game_id", gid), self.switch_tab("shots")),
+            bg="#1a3152", size=8).pack(side="left")
         if g.get("gameCenterLink"):
-            btn(box, "Highlights & GameCenter \u2197", lambda: self._open_gamecenter(g), size=8).pack(anchor="e", pady=(px(6), 0))
+            btn(row_btns, "Highlights & GameCenter \u2197", lambda: self._open_gamecenter(g), size=8).pack(side="right")
 
     def _reveal(self, gid: int) -> None:
         self.revealed.add(gid)
         self._bump_ui()
+
+    # ---- shots & heatmaps
+    def _render_shots(self, p: tk.Frame) -> None:
+        past = list(reversed(data.split_schedule(self.schedule)[0]))
+        if not past:
+            c = card(p)
+            lbl(c, "NO COMPLETED GAMES RECORDED YET", 10, True, C.SILVER).pack(anchor="w")
+            lbl(c, "Shot charts and rink heatmaps will automatically populate once games are played.",
+                8, fg=C.MUTED).pack(anchor="w", pady=(px(4), 0))
+            return
+
+        # Ensure all past shot charts are being fetched in background
+        self._fetch_all_past_shot_charts()
+
+        # Selector Card
+        sel_card = card(p, pady=px(4))
+        sel_hdr = tk.Frame(sel_card, bg=C.CARD)
+        sel_hdr.pack(fill="x", pady=(0, px(4)))
+        lbl(sel_hdr, "\U0001F3AF SHOT CLOCK & RINK VISUALIZER", 10, True, C.ACCENT).pack(side="left")
+
+        # Build dropdown options
+        options = ["\u2605 All Games Combined (Season Heatmap)"]
+        game_map: Dict[str, Any] = {"\u2605 All Games Combined (Season Heatmap)": "combined"}
+        id_to_opt: Dict[Any, str] = {"combined": "\u2605 All Games Combined (Season Heatmap)"}
+
+        for g in past:
+            gid = int(g.get("id") or 0)
+            res, ours, theirs = data.result_of(g, C.TEAM)
+            date_str = g.get("gameDate", "")
+            away = (g.get("awayTeam") or {}).get("abbrev", "")
+            home = (g.get("homeTeam") or {}).get("abbrev", "")
+            label = f"{date_str} \u00b7 {away} @ {home} ({res} {ours}-{theirs})"
+            options.append(label)
+            game_map[label] = gid
+            id_to_opt[gid] = label
+
+        # Controls row
+        ctrl_row = tk.Frame(sel_card, bg=C.CARD)
+        ctrl_row.pack(fill="x", pady=(px(2), px(4)))
+
+        lbl(ctrl_row, "Select Game:", 8, True, C.SILVER).pack(side="left", padx=(0, px(6)))
+
+        current_opt = id_to_opt.get(self.selected_shot_game_id, options[0])
+        var_choice = tk.StringVar(value=current_opt)
+
+        def _on_select(val: str) -> None:
+            chosen_gid = game_map.get(val, "combined")
+            if chosen_gid != self.selected_shot_game_id:
+                self.selected_shot_game_id = chosen_gid
+                self._bump_ui()
+
+        # Combobox
+        cb = ttk.Combobox(ctrl_row, values=options, textvariable=var_choice, state="readonly", width=38)
+        cb.pack(side="left", padx=(0, px(8)))
+        cb.bind("<<ComboboxSelected>>", lambda e: _on_select(var_choice.get()))
+
+        # Quick Navigation Buttons: [Combined] [◀ Newer] [Older ▶]
+        def _step_game(delta: int) -> None:
+            try:
+                curr_idx = options.index(var_choice.get())
+                new_idx = max(0, min(len(options) - 1, curr_idx + delta))
+                var_choice.set(options[new_idx])
+                _on_select(options[new_idx])
+            except ValueError:
+                pass
+
+        btn(ctrl_row, "\u2605 Combined", lambda: _on_select(options[0]), bg=C.GOLD, fg=C.NAVY, size=7).pack(side="left", padx=px(2))
+        btn(ctrl_row, "\u25C0 Newer", lambda: _step_game(-1), bg="#1a3152", size=7, bold=False).pack(side="left", padx=px(2))
+        btn(ctrl_row, "Older \u25B6", lambda: _step_game(1), bg="#1a3152", size=7, bold=False).pack(side="left", padx=px(2))
+
+        # Selected data resolution
+        if self.selected_shot_game_id == "combined":
+            charts = [self.shot_data.get(int(g.get("id", 0))) for g in past if int(g.get("id", 0)) in self.shot_data]
+            chart_payload = data.combine_shot_charts(charts, target_abbrev=C.TEAM)
+        else:
+            try:
+                gid = int(self.selected_shot_game_id)
+            except (ValueError, TypeError):
+                gid = int(past[0].get("id", 0))
+            if gid in self.shot_data:
+                chart_payload = self.shot_data[gid]
+            else:
+                self._fetch_shot_chart(gid)
+                chart_payload = {"shots": [], "counts": {}, "opponent": "...", "game_id": gid}
+
+        # Summary Metric Banner Card
+        sum_card = card(p, pady=px(4))
+        counts = chart_payload.get("counts", {})
+        target_sog = counts.get("target_sog", 0)
+        target_goals = counts.get("target_goals", 0)
+        opp_sog = counts.get("opp_sog", 0)
+        opp_goals = counts.get("opp_goals", 0)
+        total_shots = counts.get("total_shots", 0)
+
+        if self.selected_shot_game_id == "combined":
+            cnt = chart_payload.get("games_count", 0)
+            lbl(sum_card, f"SEASON TOTALS COMBINED \u00b7 {cnt} of {len(past)} Games Analyzed", 8, True, C.SILVER).pack(anchor="w")
+            s_row = tk.Frame(sum_card, bg=C.CARD)
+            s_row.pack(fill="x", pady=px(2))
+            lbl(s_row, f"{target_goals} \u2013 {opp_goals}", 18, True, C.ACCENT).pack(side="left")
+            lbl(s_row, f"  {C.TEAM} Goals \u2013 Opp Goals", 8, fg=C.MUTED).pack(side="left", anchor="s", pady=(0, px(4)))
+
+            stats_grid = tk.Frame(s_row, bg=C.CARD)
+            stats_grid.pack(side="right")
+            lbl(stats_grid, str(target_sog), 12, True, C.TEXT).grid(row=0, column=0, padx=px(8))
+            lbl(stats_grid, f"{C.TEAM} SOG", 7, fg=C.MUTED).grid(row=1, column=0, padx=px(8))
+
+            t_pct = counts.get("target_sh_pct", 0.0)
+            lbl(stats_grid, f"{t_pct}%", 12, True, C.GREEN if t_pct >= 10.0 else C.TEXT).grid(row=0, column=1, padx=px(8))
+            lbl(stats_grid, "SH%", 7, fg=C.MUTED).grid(row=1, column=1, padx=px(8))
+
+            lbl(stats_grid, str(opp_sog), 12, True, C.TEXT).grid(row=0, column=2, padx=px(8))
+            lbl(stats_grid, "Opp SOG", 7, fg=C.MUTED).grid(row=1, column=2, padx=px(8))
+
+            lbl(stats_grid, str(total_shots), 12, True, C.GOLD).grid(row=0, column=3, padx=px(8))
+            lbl(stats_grid, "Total Tracked", 7, fg=C.MUTED).grid(row=1, column=3, padx=px(8))
+        else:
+            # Single game
+            m_text = chart_payload.get("matchup") or "Game Details"
+            d_text = chart_payload.get("game_date") or ""
+            v_text = chart_payload.get("venue") or ""
+            lbl(sum_card, f"{m_text.upper()} \u00b7 {d_text}", 8, True, C.SILVER).pack(anchor="w")
+            s_row = tk.Frame(sum_card, bg=C.CARD)
+            s_row.pack(fill="x", pady=px(2))
+
+            t_sc = chart_payload.get("target_score", target_goals)
+            o_sc = chart_payload.get("opp_score", opp_goals)
+            res_str = "W" if t_sc > o_sc else ("L" if t_sc < o_sc else "T")
+            color_res = C.GREEN if res_str == "W" else C.RED
+            lbl(s_row, f"{C.TEAM} {t_sc} \u2013 {o_sc} {chart_payload.get('opponent', 'OPP')}", 18, True, C.ACCENT).pack(side="left")
+            lbl(s_row, f"  Final ({res_str})", 8, fg=color_res).pack(side="left", anchor="s", pady=(0, px(4)))
+
+            stats_grid = tk.Frame(s_row, bg=C.CARD)
+            stats_grid.pack(side="right")
+            lbl(stats_grid, str(target_sog), 12, True, C.TEXT).grid(row=0, column=0, padx=px(10))
+            lbl(stats_grid, f"{C.TEAM} SOG", 7, fg=C.MUTED).grid(row=1, column=0, padx=px(10))
+            lbl(stats_grid, str(opp_sog), 12, True, C.TEXT).grid(row=0, column=1, padx=px(10))
+            lbl(stats_grid, "Opp SOG", 7, fg=C.MUTED).grid(row=1, column=1, padx=px(10))
+            lbl(stats_grid, str(total_shots), 12, True, C.GOLD).grid(row=0, column=2, padx=px(10))
+            lbl(stats_grid, "Total Shots", 7, fg=C.MUTED).grid(row=1, column=2, padx=px(10))
+
+            if v_text:
+                lbl(sum_card, f"\U0001F4CD {v_text}", 8, fg=C.MUTED).pack(anchor="w", pady=(px(2), 0))
+
+        # Regulation Rink & Interactive Shot Chart
+        rink_frame = tk.Frame(p, bg=C.CARD)
+        rink_frame.pack(fill="x", pady=(0, px(8)))
+        chart_widget = rink.ShotChart(rink_frame, bg=C.CARD)
+        chart_widget.pack(fill="x", expand=True)
+        chart_widget.load_shots(chart_payload)
         self._render_live()
 
     def _toggle_game(self, gid: int) -> None:

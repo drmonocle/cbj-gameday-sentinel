@@ -98,6 +98,92 @@ def test_parse_shot_chart_coordinates_normalization():
     assert counts["opp_sog"] == 1
     assert counts["opp_goals"] == 1
     assert counts["total_shots"] == 2
+    assert s1["game_date"] == ""
+    assert s2["opponent"] == "UTA"
+
+
+def test_combine_shot_charts_multi_game():
+    c1 = {
+        "game_id": 1,
+        "counts": {"target_sog": 20, "target_goals": 2, "opp_sog": 30, "opp_goals": 3, "total_shots": 70},
+        "shots": [
+            {"id": 1, "type": "goal", "is_cbj": True, "x": 75, "y": 0, "dist": 14},
+            {"id": 2, "type": "shot-on-goal", "is_cbj": True, "x": 50, "y": 10, "dist": 40},
+            {"id": 3, "type": "goal", "is_cbj": False, "x": 80, "y": 5, "dist": 10},
+        ]
+    }
+    c2 = {
+        "game_id": 2,
+        "counts": {"target_sog": 25, "target_goals": 3, "opp_sog": 25, "opp_goals": 1, "total_shots": 65},
+        "shots": [
+            {"id": 4, "type": "goal", "is_cbj": True, "x": 70, "y": -5, "dist": 20},
+            {"id": 5, "type": "shot-on-goal", "is_cbj": False, "x": 45, "y": 0, "dist": 44},
+        ]
+    }
+
+    combined = data.combine_shot_charts([c1, c2], target_abbrev="CBJ")
+    assert combined["game_id"] == "combined"
+    assert combined["games_count"] == 2
+    assert len(combined["shots"]) == 5
+    assert combined["counts"]["target_sog"] == 45
+    assert combined["counts"]["target_goals"] == 5
+    assert combined["counts"]["opp_sog"] == 55
+    assert combined["counts"]["opp_goals"] == 4
+    assert combined["counts"]["total_shots"] == 5
+    assert combined["counts"]["target_sh_pct"] == round(5 / 45 * 100, 1)
+    assert combined["counts"]["opp_sh_pct"] == round(4 / 55 * 100, 1)
+
+
+def test_shot_chart_independent_filters():
+    from cbj_sentinel import rink
+    import tkinter as tk
+
+    root = tk.Tk()
+    root.withdraw()
+    sc = rink.ShotChart(root)
+
+    test_payload = {
+        "game_id": 2026020027,
+        "matchup": "UTA @ CBJ",
+        "game_date": "2026-10-03",
+        "target_score": 1,
+        "opp_score": 4,
+        "counts": {"target_sog": 19, "target_goals": 1, "opp_sog": 31, "opp_goals": 4, "total_shots": 5},
+        "shots": [
+            {"id": 1, "type": "goal", "is_cbj": False, "period": 1, "player": "Sergachev", "shotType": "slap"},
+            {"id": 2, "type": "goal", "is_cbj": False, "period": 1, "player": "Schmaltz", "shotType": "snap"},
+            {"id": 3, "type": "goal", "is_cbj": True, "period": 2, "player": "Johnson", "shotType": "snap"},
+            {"id": 4, "type": "goal", "is_cbj": False, "period": 3, "player": "Guenther", "shotType": "slap"},
+            {"id": 5, "type": "goal", "is_cbj": False, "period": 3, "player": "Schmaltz", "shotType": "wrist"},
+        ]
+    }
+    sc.load_shots(test_payload)
+
+    # By default: filter_team="all", filter_type="all" -> all 5 shots visible (each goal has halo, star, text)
+    displayed_shots = set(s["id"] for s in sc._marker_items.values())
+    assert len(displayed_shots) == 5
+
+    # Filter: CBJ Only ("target") + Goals ("goals") -> only Kent Johnson (1 goal)
+    sc._set_team_filter("target")
+    sc._set_type_filter("goals")
+    displayed_shots = set(s["id"] for s in sc._marker_items.values())
+    assert len(displayed_shots) == 1
+    assert "Showing 1 CBJ Goal" in sc.l_filter_status.cget("text")
+
+    # Filter: Both Teams ("all") + Goals ("goals") -> all 5 goals
+    sc._set_team_filter("all")
+    sc._set_type_filter("goals")
+    displayed_shots = set(s["id"] for s in sc._marker_items.values())
+    assert len(displayed_shots) == 5
+    assert "Showing 5 Total Goals" in sc.l_filter_status.cget("text")
+
+    # Filter: Opponent Only ("opp") + Goals ("goals") -> 4 goals
+    sc._set_team_filter("opp")
+    displayed_shots = set(s["id"] for s in sc._marker_items.values())
+    assert len(displayed_shots) == 4
+    assert "Showing 4 Opponent Goals" in sc.l_filter_status.cget("text")
+
+    root.destroy()
 
 
 # ---------------------------------------------------------------- 32-team presets
