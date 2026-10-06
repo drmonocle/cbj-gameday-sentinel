@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+build/
+dist/
+*.spec
+*.log
+# Never commit team trademarks or personal customizations
+custom_logo.png
+custom_horn.wav
+cbj_logo*.png
+*.ico
