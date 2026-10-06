@@ -595,7 +595,7 @@ class SentinelApp:
     def _update_tray_icon(self) -> None:
         g = self.game
         key = None
-        if g and g.get("gameState") in data.LIVE_STATES:
+        if self.settings.get("tray_live_score", False) and g and g.get("gameState") in data.LIVE_STATES:
             _, us, them = data.perspective(g, C.TEAM)
             key = (int(us.get("score") or 0), int(them.get("score") or 0))
         if key == self.icon_key:
@@ -629,6 +629,9 @@ class SentinelApp:
             if value:
                 self.overlay.dismissed = None
             self._render_live()
+        elif key == "tray_live_score":
+            self.icon_key = "toggle"
+            self._update_tray_icon()
 
     def show(self) -> None:
         self.root.deiconify()
@@ -1515,6 +1518,7 @@ class SentinelApp:
             ("Window", (("auto_popup", "Pop up the window when a game goes live"),
                         ("popup_on_goal", "Bring the window to front on a CBJ goal"),
                         ("mini_overlay", "Show the mini always-on-top scoreboard during games"),
+                        ("tray_live_score", "Show live score in tray icon during games (default: keep CBJ logo)"),
                         ("start_with_windows", "Start minimized to tray when Windows starts"))),
             ("Spoilers", (("spoiler_mode", "Spoiler mode: hide results until I reveal them (also in the header and tray)"),)),
         )

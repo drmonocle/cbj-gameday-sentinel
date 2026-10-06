@@ -21,6 +21,7 @@ DEFAULTS: Dict[str, Any] = {
     "spoiler_mode": False,
     "mini_overlay": True,
     "start_with_windows": False,
+    "tray_live_score": False,
     "delay_seconds": 0,
     "volume": 80,
     "watch": "prime",

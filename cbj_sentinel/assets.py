@@ -95,14 +95,14 @@ def _base_logo() -> Optional[Image.Image]:
     if "img" in _logo_cache:
         return _logo_cache["img"]
     img = None
-    for name in ("custom_logo.png", TEAM_LOGO):
-        p = data_dir() / name
+    bundled = Path(__file__).parent / "logo.png"
+    for p in (data_dir() / "custom_logo.png", data_dir() / TEAM_LOGO, bundled):
         if p.is_file() and p.stat().st_size <= config.MAX_IMAGE_BYTES:
             try:
                 img = load_safe_image(p.read_bytes(), 1024)
                 break
             except Exception:
-                log.warning("%s could not be loaded", name)
+                log.warning("%s could not be loaded", p.name)
     _logo_cache["img"] = img
     return img
 
@@ -110,6 +110,15 @@ def _base_logo() -> Optional[Image.Image]:
 def app_icon(size: int = 256) -> Image.Image:
     logo = _base_logo()
     if logo is not None:
+        bbox = logo.getbbox()
+        if bbox:
+            cropped = logo.crop(bbox)
+            w, h = cropped.size
+            side = max(w, h)
+            pad = max(1, int(side * 0.04))
+            canvas = Image.new("RGBA", (side + pad * 2, side + pad * 2), (0, 0, 0, 0))
+            canvas.paste(cropped, (pad + (side - w) // 2, pad + (side - h) // 2), cropped)
+            return canvas.resize((size, size), Image.LANCZOS)
         canvas = Image.new("RGBA", (max(logo.size),) * 2, (0, 0, 0, 0))
         canvas.paste(logo, ((canvas.width - logo.width) // 2, (canvas.height - logo.height) // 2), logo)
         return canvas.resize((size, size), Image.LANCZOS)
