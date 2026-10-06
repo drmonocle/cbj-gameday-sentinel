@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import html
+import math
 import re
 import time
 import xml.etree.ElementTree as ET
@@ -440,6 +441,112 @@ def penalty_lines(landing: Dict[str, Any], limit: int = 12) -> List[str]:
             lines.append(f"{plabel} {p.get('timeInPeriod', '')}  [{name_of(p.get('teamAbbrev'))}] "
                          f"{name or 'Bench'} \u2013 {infraction} ({p.get('duration', '?')} min)")
     return lines[-limit:]
+
+
+def parse_shot_chart(pbp: Dict[str, Any], team_id: int = 29, team_abbrev: str = "CBJ") -> Dict[str, Any]:
+    """Parse NHL play-by-play events into normalized shot chart coordinates and metadata."""
+    if not isinstance(pbp, dict):
+        return {"shots": [], "counts": {}, "opponent": "OPP"}
+
+    players: Dict[int, str] = {}
+    for p in pbp.get("rosterSpots", []) or []:
+        pid = p.get("playerId")
+        if pid:
+            first = name_of(p.get("firstName"))
+            last = name_of(p.get("lastName"))
+            players[pid] = f"{first} {last}".strip()
+
+    home = pbp.get("homeTeam") or {}
+    away = pbp.get("awayTeam") or {}
+    home_id = home.get("id")
+    away_id = away.get("id")
+    home_abbrev = name_of(home.get("abbrev"))
+    away_abbrev = name_of(away.get("abbrev"))
+
+    is_home_target = (home_id == team_id or home_abbrev == team_abbrev)
+    target_id = home_id if is_home_target else away_id
+    opp_abbrev = (away_abbrev if is_home_target else home_abbrev) or "OPP"
+
+    shots: List[Dict[str, Any]] = []
+    target_sog = 0
+    target_goals = 0
+    opp_sog = 0
+    opp_goals = 0
+
+    for p in pbp.get("plays", []) or []:
+        type_key = p.get("typeDescKey")
+        if type_key not in ("goal", "shot-on-goal", "missed-shot", "blocked-shot"):
+            continue
+
+        det = p.get("details") or {}
+        x = det.get("xCoord")
+        y = det.get("yCoord")
+        if x is None or y is None:
+            continue
+
+        try:
+            fx = float(x)
+            fy = float(y)
+        except (ValueError, TypeError):
+            continue
+
+        # Normalize to offensive half-rink attacking right net at (89, 0)
+        nx = abs(fx)
+        ny = -fy if fx < 0 else fy
+        dist = round(math.sqrt((89.0 - nx) ** 2 + ny ** 2), 1)
+
+        owner = det.get("eventOwnerTeamId")
+        is_target = bool(owner == target_id or (owner == team_id if team_id else False))
+        if owner and not is_target:
+            if is_home_target and owner == home_id:
+                is_target = True
+            elif not is_home_target and owner == away_id:
+                is_target = True
+
+        if type_key == "goal":
+            if is_target:
+                target_goals += 1
+                target_sog += 1
+            else:
+                opp_goals += 1
+                opp_sog += 1
+        elif type_key == "shot-on-goal":
+            if is_target:
+                target_sog += 1
+            else:
+                opp_sog += 1
+
+        pid = det.get("scoringPlayerId") or det.get("shootingPlayerId") or det.get("blockingPlayerId")
+        player_name = players.get(pid, "Unknown")
+
+        period_desc = p.get("periodDescriptor") or {}
+        shots.append({
+            "id": p.get("eventId", 0),
+            "period": period_desc.get("number", 1),
+            "time": p.get("timeInPeriod", ""),
+            "type": type_key,
+            "shotType": det.get("shotType") or "shot",
+            "x": nx,
+            "y": ny,
+            "dist": dist,
+            "player": player_name,
+            "playerId": pid,
+            "is_cbj": is_target,
+            "team_abbrev": team_abbrev if is_target else opp_abbrev,
+        })
+
+    return {
+        "game_id": pbp.get("id"),
+        "opponent": opp_abbrev,
+        "counts": {
+            "target_sog": target_sog,
+            "target_goals": target_goals,
+            "opp_sog": opp_sog,
+            "opp_goals": opp_goals,
+            "total_shots": len(shots),
+        },
+        "shots": shots,
+    }
 
 
 # ---------------------------------------------------------------- standings

@@ -30,7 +30,7 @@ from typing import Any, Callable, Dict, List, Optional
 import pystray
 from PIL import ImageTk
 
-from . import __version__, assets, config as C, data, net, settings
+from . import __version__, assets, config as C, data, net, rink, settings
 
 log = logging.getLogger(__name__)
 
@@ -232,6 +232,191 @@ class MiniOverlay:
         self.l_info.configure(text=info)
 
 
+# ---------------------------------------------------------------- floating ticker bar
+class TickerBar:
+    """Ultra-slim, borderless, always-on-top floating ticker ribbon.
+
+    Designed to float or dock on a second monitor while working or gaming.
+    Displays live scores, clock/period, situation, shots on goal, and recent scorers,
+    or next game countdown when idle.
+    """
+
+    def __init__(self, app: "SentinelApp"):
+        self.app = app
+        self.win: Optional[tk.Toplevel] = None
+        self._drag = (0, 0)
+        self._icon_img: Optional[ImageTk.PhotoImage] = None
+
+    def _build(self) -> None:
+        w = tk.Toplevel(self.app.root)
+        w.overrideredirect(True)
+        w.attributes("-topmost", True)
+        try:
+            w.attributes("-alpha", 0.95)
+        except tk.TclError:
+            pass
+        w.configure(bg=C.RED)
+
+        self.bar = tk.Frame(w, bg="#071322", padx=px(10), pady=px(4))
+        self.bar.pack(fill="both", expand=True, padx=1, pady=1)
+
+        self._icon_img = ImageTk.PhotoImage(assets.app_icon(px(22)))
+        self.l_logo = tk.Label(self.bar, image=self._icon_img, bg="#071322")
+        self.l_logo.pack(side="left", padx=(0, px(6)))
+
+        self.l_badge = tk.Label(self.bar, text="", font=(C.FONT, 8, "bold"),
+                                fg=C.TEXT, bg=C.RED, padx=px(5), pady=px(1))
+        self.l_badge.pack(side="left", padx=(0, px(6)))
+
+        self.l_score = tk.Label(self.bar, text="", font=(C.FONT, 10, "bold"),
+                                fg=C.TEXT, bg="#071322")
+        self.l_score.pack(side="left", padx=(0, px(8)))
+
+        self.l_clock = tk.Label(self.bar, text="", font=(C.FONT, 9, "bold"),
+                                fg=C.ACCENT, bg="#071322")
+        self.l_clock.pack(side="left", padx=(0, px(8)))
+
+        self.l_sit = tk.Label(self.bar, text="", font=(C.FONT, 8),
+                              fg=C.GOLD, bg="#071322")
+        self.l_sit.pack(side="left", padx=(0, px(8)))
+
+        self.l_note = tk.Label(self.bar, text="", font=(C.FONT, 8),
+                               fg=C.SILVER, bg="#071322")
+        self.l_note.pack(side="left", fill="x", expand=True)
+
+        ctrls = tk.Frame(self.bar, bg="#071322")
+        ctrls.pack(side="right", padx=(px(6), 0))
+
+        b_expand = tk.Button(ctrls, text="\u2922 Expand", font=(C.FONT, 8, "bold"),
+                             command=self.expand, bg="#132338", fg=C.TEXT,
+                             bd=0, padx=px(6), pady=px(1), cursor="hand2",
+                             activebackground=C.RED, activeforeground=C.TEXT)
+        b_expand.pack(side="left", padx=2)
+
+        b_close = tk.Button(ctrls, text="\u2715", font=(C.FONT, 8),
+                            command=self.hide, bg="#132338", fg=C.MUTED,
+                            bd=0, padx=px(5), pady=px(1), cursor="hand2",
+                            activebackground=C.RED, activeforeground=C.TEXT)
+        b_close.pack(side="left", padx=1)
+
+        for widget in (w, self.bar, self.l_logo, self.l_badge, self.l_score,
+                       self.l_clock, self.l_sit, self.l_note, ctrls):
+            widget.bind("<ButtonPress-1>", self._start_drag)
+            widget.bind("<B1-Motion>", self._on_drag)
+            widget.bind("<ButtonRelease-1>", self._end_drag)
+            widget.bind("<Double-Button-1>", lambda e: self.expand())
+
+        self.win = w
+        w.update_idletasks()
+        sw, sh = w.winfo_screenwidth(), w.winfo_screenheight()
+        x, y = self.app.settings.get("ticker_x", -1), self.app.settings.get("ticker_y", -1)
+        if not (0 <= x < sw - 100 and 0 <= y < sh - 40):
+            req_w = max(w.winfo_reqwidth(), px(640))
+            x = (sw - req_w) // 2
+            y = sh - w.winfo_reqheight() - px(48)
+        w.geometry(f"+{x}+{y}")
+
+    def _start_drag(self, e) -> None:
+        if self.win:
+            self._drag = (e.x_root - self.win.winfo_x(), e.y_root - self.win.winfo_y())
+
+    def _on_drag(self, e) -> None:
+        if self.win:
+            self.win.geometry(f"+{e.x_root - self._drag[0]}+{e.y_root - self._drag[1]}")
+
+    def _end_drag(self, _e) -> None:
+        if self.win:
+            self.app.settings["ticker_x"] = max(0, self.win.winfo_x())
+            self.app.settings["ticker_y"] = max(0, self.win.winfo_y())
+            settings.save(self.app.settings)
+
+    def expand(self) -> None:
+        self.app.show()
+
+    def hide(self) -> None:
+        if self.win is not None:
+            self.win.destroy()
+            self.win = None
+        self.app.settings["ticker_bar"] = False
+        settings.save(self.app.settings)
+        if "ticker_bar" in self.app.setting_vars:
+            self.app.setting_vars["ticker_bar"].set(False)
+        try:
+            self.app.icon.update_menu()
+        except Exception:
+            pass
+
+    def show(self) -> None:
+        if self.win is None:
+            self._build()
+        self.update_content()
+
+    def update_content(self) -> None:
+        if self.win is None:
+            return
+        g = self.app.display_game()
+        if g:
+            home = g.get("homeTeam") or {}
+            away = g.get("awayTeam") or {}
+            state = g.get("gameState")
+            h_ab = away.get("abbrev", "")
+            a_ab = home.get("abbrev", "")
+            h_sc = away.get("score", 0)
+            a_sc = home.get("score", 0)
+            s_away = away.get("sog", 0)
+            s_home = home.get("sog", 0)
+
+            if state in data.LIVE_STATES:
+                self.l_badge.configure(text=" \u25CF LIVE ", bg=C.RED, fg=C.TEXT)
+                clock = g.get("clock") or {}
+                p_lbl = data.period_label(g)
+                c_lbl = f"{p_lbl} {clock.get('timeRemaining', '')}"
+                self.l_score.configure(text=f"{h_ab} {h_sc} \u2013 {a_sc} {a_ab}")
+                self.l_clock.configure(text=c_lbl, fg=C.ACCENT)
+                self.l_sit.configure(text=f"SOG {h_ab} {s_away}-{s_home} {a_ab}")
+                sit = data.situation(g, self.app.live_landing)
+                if sit.get("pp"):
+                    self.l_sit.configure(text=f"PP: {sit['pp']} ({sit['advantage']})")
+                scorer = data.last_scorer(g.get("goals") or [], C.TEAM)
+                self.l_note.configure(text=f"\u2605 {scorer}" if scorer else data.broadcasts(g, C.TEAM))
+            elif state in data.FINAL_STATES:
+                if self.app.spoiler_hidden(g):
+                    self.l_badge.configure(text=" FINAL ", bg="#1a3152", fg=C.MUTED)
+                    self.l_score.configure(text=f"{h_ab} @ {a_ab}")
+                    self.l_clock.configure(text="Final (Hidden)", fg=C.MUTED)
+                    self.l_sit.configure(text="")
+                    self.l_note.configure(text="Spoiler mode active")
+                else:
+                    res, ours, theirs = data.result_of(g, C.TEAM)
+                    bg = C.GREEN if res == "W" else C.RED
+                    self.l_badge.configure(text=f" {res} ", bg=bg, fg=C.TEXT)
+                    self.l_score.configure(text=f"{h_ab} {h_sc} \u2013 {a_sc} {a_ab}")
+                    self.l_clock.configure(text="Final", fg=C.SILVER)
+                    self.l_sit.configure(text=f"SOG {h_ab} {s_away}-{s_home} {a_ab}")
+                    self.l_note.configure(text=data.venue_line(g))
+            else:
+                self.l_badge.configure(text=" GAMEDAY ", bg="#1a3152", fg=C.TEXT)
+                self.l_score.configure(text=f"{h_ab} @ {a_ab}")
+                self.l_clock.configure(text=data.local_start(g), fg=C.ACCENT)
+                self.l_sit.configure(text="")
+                self.l_note.configure(text=data.broadcasts(g, C.TEAM) or data.venue_line(g))
+        else:
+            nxt = self.app.next_game()
+            if nxt:
+                self.l_badge.configure(text=" NEXT ", bg="#1a3152", fg=C.SILVER)
+                self.l_score.configure(text=data.matchup_line(nxt, C.TEAM))
+                self.l_clock.configure(text=data.local_start(nxt), fg=C.ACCENT)
+                self.l_sit.configure(text="")
+                tv = data.broadcasts(nxt, C.TEAM)
+                self.l_note.configure(text=f"\U0001F4FA {tv}" if tv else data.venue_line(nxt))
+            else:
+                self.l_badge.configure(text=" NHL ", bg="#1a3152", fg=C.MUTED)
+                self.l_score.configure(text=C.APP_NAME)
+                self.l_clock.configure(text="No upcoming games", fg=C.MUTED)
+                self.l_sit.configure(text="")
+                self.l_note.configure(text="")
+
+
 # ---------------------------------------------------------------- app
 class SentinelApp:
     TABS = (("live", "\U0001F3D2 Live"), ("games", "\U0001F4C5 Games"), ("standings", "\U0001F3C6 Standings"),
@@ -259,6 +444,7 @@ class SentinelApp:
         self.news_by_source: Dict[str, List[dict]] = {}
         self.news: List[dict] = []
         self.landing: Dict[int, dict] = {}
+        self.shot_data: Dict[int, dict] = {}
         self.update_info: Optional[dict] = None
         self.offline = False
 
@@ -290,6 +476,9 @@ class SentinelApp:
 
         self._icon_base = assets.app_icon(64)
         self.overlay = MiniOverlay(self)
+        self.ticker = TickerBar(self)
+        if self.settings.get("ticker_bar", False):
+            self.ticker.show()
         self._build_window()
         self._build_tray()
         self.root.bind_all("<MouseWheel>", self._on_wheel)
@@ -372,8 +561,8 @@ class SentinelApp:
     def _build_window(self) -> None:
         r = self.root
         r.title(C.APP_NAME)
-        r.geometry(f"{px(640)}x{px(740)}")
-        r.minsize(px(560), px(600))
+        r.geometry(f"{px(660)}x{px(780)}")
+        r.minsize(px(580), px(640))
         r.configure(bg=C.BG)
         r.protocol("WM_DELETE_WINDOW", self.hide)
         self._icon_img = ImageTk.PhotoImage(assets.app_icon(px(64)))
@@ -394,9 +583,11 @@ class SentinelApp:
         self._hdr_img = ImageTk.PhotoImage(assets.app_icon(px(38)))
         self.l_hdr_img = tk.Label(header, image=self._hdr_img, bg=C.NAVY)
         self.l_hdr_img.pack(side="left", padx=(px(12), px(8)))
-        lbl(header, "CBJ GAMEDAY SENTINEL", 12, True, bg=C.NAVY).pack(side="left")
+        lbl(header, C.APP_NAME.upper(), 12, True, bg=C.NAVY).pack(side="left")
         self.b_refresh = btn(header, "\U0001F504 Refresh", self.refresh, bg="#1a3152", size=8, bold=False)
         self.b_refresh.pack(side="right", padx=(px(6), px(12)))
+        self.b_ticker = btn(header, "\U0001F5A5 Ticker", self._toggle_ticker, bg="#1a3152", size=8, bold=False)
+        self.b_ticker.pack(side="right", padx=px(4))
         self.b_spoiler = btn(header, "", lambda: self._toggle("spoiler_mode", not self.settings["spoiler_mode"]),
                              size=8, bold=False)
         self.b_spoiler.pack(side="right", padx=px(4))
@@ -416,7 +607,7 @@ class SentinelApp:
         footer.pack(fill="x", side="bottom")
         footer.pack_propagate(False)
         self.sound_var = tk.BooleanVar(value=self.settings["sound"])
-        tk.Checkbutton(footer, text="Goal horn", variable=self.sound_var,
+        tk.Checkbutton(footer, text="Goal horn" if C.TEAM == "CBJ" else "Goal sound", variable=self.sound_var,
                        command=lambda: self._toggle("sound", self.sound_var.get()),
                        font=(C.FONT, 8), fg=C.SILVER, bg=C.BAR, selectcolor=C.NAVY,
                        activebackground=C.BAR, activeforeground=C.TEXT).pack(side="left", padx=px(8))
@@ -441,7 +632,30 @@ class SentinelApp:
         self.body.pack(fill="both", expand=True)
         self.body.grid_rowconfigure(0, weight=1)
         self.body.grid_columnconfigure(0, weight=1)
-        self.frames: Dict[str, tk.Frame] = {"live": tk.Frame(self.body, bg=C.BG, padx=px(14), pady=px(10))}
+
+        # Scrollable container for live tab (holds scoreboard + shot chart + scoring)
+        live_frame = tk.Frame(self.body, bg=C.BG)
+        live_canvas = tk.Canvas(live_frame, bg=C.BG, highlightthickness=0, bd=0)
+        live_bar = ttk.Scrollbar(live_frame, orient="vertical", command=live_canvas.yview)
+        live_canvas.configure(yscrollcommand=live_bar.set)
+        live_canvas.pack(side="left", fill="both", expand=True, padx=(px(10), px(2)), pady=px(4))
+        live_bar.pack(side="right", fill="y")
+        live_inner = tk.Frame(live_canvas, bg=C.BG)
+        live_win = live_canvas.create_window(0, 0, window=live_inner, anchor="nw")
+
+        def _sync_live(_e=None):
+            live_canvas.configure(scrollregion=live_canvas.bbox("all"))
+
+        def _resize_live(event):
+            live_canvas.itemconfigure(live_win, width=event.width)
+
+        live_inner.bind("<Configure>", _sync_live)
+        live_canvas.bind("<Configure>", _resize_live)
+        self.scroll_canvases.add(live_canvas)
+        self.live_canvas = live_canvas
+        self.live_inner = live_inner
+
+        self.frames: Dict[str, tk.Frame] = {"live": live_frame}
         for key in ("games", "standings", "news", "roster", "settings"):
             self.frames[key] = ScrollArea(self.body, self.scroll_canvases)
         for fr in self.frames.values():
@@ -503,15 +717,15 @@ class SentinelApp:
         self._scale_trough_dragging = False
 
     def _build_live(self) -> None:
-        f = self.frames["live"]
-        top = tk.Frame(f, bg=C.CARD, pady=px(12))
-        top.pack(fill="x")
+        f = self.live_inner
+        top = tk.Frame(f, bg=C.CARD, pady=px(10))
+        top.pack(fill="x", pady=(0, px(6)))
         tk.Frame(top, bg=C.RED, height=px(3)).pack(fill="x", side="top")
-        self._live_img = ImageTk.PhotoImage(assets.app_icon(px(64)))
+        self._live_img = ImageTk.PhotoImage(assets.app_icon(px(56)))
         self.l_logo = tk.Label(top, image=self._live_img, bg=C.CARD)
-        self.l_logo.pack(pady=(px(8), 0))
+        self.l_logo.pack(pady=(px(6), 0))
         self.l_title = lbl(top, "", 9, True, C.SILVER)
-        self.l_title.pack(pady=(px(4), 0))
+        self.l_title.pack(pady=(px(2), 0))
         self.l_matchup = lbl(top, "", 16, True)
         self.l_matchup.pack(pady=(px(2), 0))
         self.l_big = lbl(top, "-- : --", 26, True, C.ACCENT)
@@ -526,7 +740,7 @@ class SentinelApp:
         self.l_tv.pack()
 
         bar = tk.Frame(f, bg=C.BG)
-        bar.pack(fill="x", side="bottom", pady=(px(6), 0))
+        bar.pack(fill="x", pady=(0, px(8)))
         self.b_watch = btn(bar, "", self.open_watch, bg="#00838f")
         self.b_watch.pack(side="left")
         self.b_gc = btn(bar, "GameCenter \u2197", self._open_current_gamecenter)
@@ -534,9 +748,13 @@ class SentinelApp:
         self.b_reveal = btn(bar, "\U0001F441 Reveal score", self._reveal_current, bg=C.RED)
         self._sync_watch_button()
 
+        # Regulation Ice Rink & Interactive Shot Chart
+        self.shot_chart = rink.ShotChart(f, bg=C.CARD)
+        self.shot_chart.pack(fill="x", pady=(0, px(8)))
+
         panes = tk.Frame(f, bg=C.BG)
-        panes.pack(fill="both", expand=True, pady=(px(10), 0))
-        self.t_goals = self._text_pane(panes, "SCORING", 6)
+        panes.pack(fill="both", expand=True)
+        self.t_goals = self._text_pane(panes, "SCORING", 5)
         self.t_pens = self._text_pane(panes, "PENALTIES", 4)
 
     def _text_pane(self, parent, title: str, height: int) -> tk.Text:
@@ -577,6 +795,7 @@ class SentinelApp:
             pystray.Menu.SEPARATOR,
             pystray.MenuItem(lambda _: f"Watch on {self.watch_label()}", lambda *_: self.post(self.open_watch)),
             pystray.MenuItem("Mute goal horn", toggle("sound"), checked=lambda _: not self.settings["sound"]),
+            pystray.MenuItem("Floating ticker bar", toggle("ticker_bar"), checked=lambda _: self.settings.get("ticker_bar", False)),
             pystray.MenuItem("Mini scoreboard", toggle("mini_overlay"), checked=lambda _: self.settings["mini_overlay"]),
             pystray.MenuItem("Spoiler mode", toggle("spoiler_mode"), checked=lambda _: self.settings["spoiler_mode"]),
             pystray.MenuItem("Refresh now", lambda *_: self.post(self.refresh)),
@@ -606,6 +825,9 @@ class SentinelApp:
         except Exception:
             log.warning("Tray icon update failed", exc_info=True)
 
+    def _toggle_ticker(self) -> None:
+        self._toggle("ticker_bar", not self.settings.get("ticker_bar", False))
+
     def _toggle(self, key: str, value: bool) -> None:
         self.settings[key] = bool(value)
         if key == "sound":
@@ -629,6 +851,11 @@ class SentinelApp:
             if value:
                 self.overlay.dismissed = None
             self._render_live()
+        elif key == "ticker_bar":
+            if value:
+                self.ticker.show()
+            else:
+                self.ticker.hide()
         elif key == "tray_live_score":
             self.icon_key = "toggle"
             self._update_tray_icon()
@@ -676,6 +903,11 @@ class SentinelApp:
                         snap["live_landing"] = net.fetch_json(C.URL_LANDING.format(game_id=gid))
                     except Exception as exc:
                         log.warning("Live landing fetch failed: %s", exc)
+                    try:
+                        pbp = net.fetch_json(C.URL_PLAY_BY_PLAY.format(game_id=gid))
+                        snap["shot_data"] = {gid: data.parse_shot_chart(pbp, C.NHL_TEAM_ID, C.TEAM)}
+                    except Exception as exc:
+                        log.warning("Live play-by-play fetch failed: %s", exc)
                 snap["offline"] = False
             except Exception as exc:
                 log.warning("Scoreboard fetch failed: %s", exc)
@@ -767,16 +999,42 @@ class SentinelApp:
         self._bump("landing")
         self._render_active(force=False)
 
+    def _fetch_shot_chart(self, game_id: int) -> None:
+        if game_id in self.shot_data:
+            return
+        def run():
+            try:
+                pbp = net.fetch_json(C.URL_PLAY_BY_PLAY.format(game_id=int(game_id)))
+                shots = data.parse_shot_chart(pbp, C.NHL_TEAM_ID, C.TEAM)
+            except Exception as exc:
+                log.warning("Shot chart fetch failed for %s: %s", game_id, exc)
+                shots = {"shots": [], "counts": {}, "opponent": "OPP"}
+            self.post(lambda: self._store_shot_chart(game_id, shots))
+        threading.Thread(target=run, daemon=True).start()
+
+    def _store_shot_chart(self, game_id: int, shots: dict) -> None:
+        self.shot_data[game_id] = shots
+        g = self.display_game()
+        if g and int(g.get("id", 0)) == game_id:
+            if not self.spoiler_hidden(g):
+                self.shot_chart.load_shots(shots)
+        else:
+            past = data.split_schedule(self.schedule)[0]
+            if past and int(past[-1].get("id", 0)) == game_id and not self.settings["spoiler_mode"]:
+                self.shot_chart.load_shots(shots)
+
     # ------------------------------------------------------------ state
     def _apply(self, snap: Dict[str, Any]) -> None:
         for key in ("schedule", "stats", "standings", "roster", "offline", "update_info"):
             if key in snap:
                 self._set(key, snap[key])
+        if snap.get("shot_data"):
+            self.shot_data.update(snap["shot_data"])
         if snap.get("news_by_source"):
             self.news_by_source = {**self.news_by_source, **snap["news_by_source"]}
             self._set("news", data.merge_news(*self.news_by_source.values()))
         if "game" in snap:
-            self.delay_q.append((time.monotonic(), {k: snap.get(k) for k in ("game", "boxscore", "live_landing")}))
+            self.delay_q.append((time.monotonic(), {k: snap.get(k) for k in ("game", "boxscore", "live_landing", "shot_data")}))
         self._release_delayed()
         if self.update_info and not self.update_toasted:
             self.update_toasted = True
@@ -797,6 +1055,8 @@ class SentinelApp:
             self._set("game", live.get("game"))
             self._set("boxscore", live.get("boxscore"))
             self._set("live_landing", live.get("live_landing"))
+            if live.get("shot_data"):
+                self.shot_data.update(live["shot_data"])
             self._check_game_events()
             changed = True
         return changed
@@ -885,6 +1145,8 @@ class SentinelApp:
         self.l_delay.configure(text=f"\u23F1 {delay}s delay" if delay else "")
         self._update_overlay()
         self._update_tray_icon()
+        if self.settings.get("ticker_bar") and self.ticker.win is not None:
+            self.ticker.update_content()
         self._tick(reschedule=False)
 
     def _show_reveal(self, show: bool) -> None:
@@ -901,6 +1163,15 @@ class SentinelApp:
         self._set_text(self.t_goals, [], "Scoring plays appear here during games.")
         self._set_text(self.t_pens, [], "Penalties appear here during games.")
         self.b_gc.configure(text="Game preview \u2197")
+        past = data.split_schedule(self.schedule)[0]
+        if past and not self.settings["spoiler_mode"]:
+            last_gid = int(past[-1].get("id") or 0)
+            if last_gid in self.shot_data:
+                self.shot_chart.load_shots(self.shot_data[last_gid])
+            else:
+                self._fetch_shot_chart(last_gid)
+        else:
+            self.shot_chart.load_shots({"shots": [], "counts": {}, "opponent": ""})
         if nxt:
             gtype = data.GAME_TYPES.get(nxt.get("gameType"), "")
             self.l_title.configure(text=f"NEXT GAME \u00b7 {gtype.upper()}")
@@ -920,6 +1191,7 @@ class SentinelApp:
     def _render_game(self, g: dict) -> None:
         home, away = g.get("homeTeam") or {}, g.get("awayTeam") or {}
         state = g.get("gameState")
+        gid = int(g.get("id") or 0)
         gtype = data.GAME_TYPES.get(g.get("gameType"), "").upper()
         score = f"{away.get('abbrev', '')}  {away.get('score', 0)}  \u2013  {home.get('score', 0)}  {home.get('abbrev', '')}"
         sog = f"Shots {away.get('abbrev', '')} {away.get('sog', 0)} \u00b7 {home.get('abbrev', '')} {home.get('sog', 0)}"
@@ -933,6 +1205,12 @@ class SentinelApp:
         delay = self.settings["delay_seconds"]
         hidden = self.spoiler_hidden(g)
         self._show_reveal(hidden)
+        if hidden:
+            self.shot_chart.load_shots({"shots": [], "counts": {}, "opponent": ""})
+        elif gid in self.shot_data:
+            self.shot_chart.load_shots(self.shot_data[gid])
+        else:
+            self._fetch_shot_chart(gid)
 
         if state in data.LIVE_STATES:
             clock = g.get("clock") or {}
@@ -1517,6 +1795,7 @@ class SentinelApp:
                         ("puck_drop_reminder", "Remind me 30 minutes before puck drop"))),
             ("Window", (("auto_popup", "Pop up the window when a game goes live"),
                         ("popup_on_goal", "Bring the window to front on a CBJ goal"),
+                        ("ticker_bar", "Show compact floating ticker ribbon (dock on second monitor)"),
                         ("mini_overlay", "Show the mini always-on-top scoreboard during games"),
                         ("tray_live_score", "Show live score in tray icon during games (default: keep CBJ logo)"),
                         ("start_with_windows", "Start minimized to tray when Windows starts"))),

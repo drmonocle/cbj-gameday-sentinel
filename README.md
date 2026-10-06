@@ -6,23 +6,35 @@ An unofficial, lightweight Windows system-tray app for Columbus Blue Jackets fan
 
 ## Features
 
-**Gameday**
-- **Live tab**: who CBJ is playing and where (full opponent name, arena, city, local puck-drop time, TV networks), with a live countdown and a one-click game preview / GameCenter link.
-- **During games**: score, period and clock, shots, **power-play and goalie-pulled alerts**, a running scoring summary (PPG/SHG/EN tags), and a penalty log.
-- **Goal horn with volume slider**: an original synthesized horn-and-cannon tuned to sound like the arena. You can import your own `.wav` instead, and turn on a soft chime for opponent goals.
-- **Windows notifications**: goals, end of each period, final score, and a 30-minute puck-drop reminder.
-- **Mini scoreboard**: a small always-on-top overlay you can drag anywhere. Double-click it to open the app, or click ✕ to dismiss it for the night.
-- **Live score in the tray icon**: the ring turns green when CBJ leads and red when they trail.
-- **Stream delay**: hold back scores, horn, and alerts by 0–180 s so a lagging stream doesn't get spoiled.
-- **Spoiler mode** (one click in the header): hides final scores, results, records, standings, and headlines until you click *Reveal*. Made for watching a replay later.
-- **Watch button**: opens Prime Video (Blue Jackets Hockey Network), ESPN+, Fubo, or the NHL where-to-watch page. You pick which in Settings.
+**Gameday & Live Visuals**
+- **Interactive Ice Rink & Shot Chart**: An offensive-zone regulation NHL vector half-rink plotted from official play-by-play `(x, y)` coordinate data. Hover over any shot marker to inspect shooter name, shot type (wrist, slap, snap, backhand), distance, period, and high-danger slot classification. Includes period and team/goals filter toggles.
+- **Compact Floating Ticker Bar**: Ultra-slim horizontal ribbon designed to float or dock on a second monitor while working or gaming. Displays live scores, clock, SOG, power plays, and recent scorers with one-click window expansion.
+- **Live tab**: Who CBJ is playing and where (full opponent name, arena, city, local puck-drop time, TV networks), with a live countdown and a one-click game preview / GameCenter link.
+- **During games**: Score, period and clock, shots, **power-play and goalie-pulled alerts**, a running scoring summary (PPG/SHG/EN tags), and a penalty log.
+- **Goal horn with volume slider**: An original synthesized horn-and-cannon tuned to sound like the arena. You can import your own `.wav` instead, and turn on a soft chime for opponent goals.
+- **Windows notifications**: Goals, end of each period, final score, and a 30-minute puck-drop reminder.
+- **Mini scoreboard**: A small always-on-top overlay you can drag anywhere. Double-click it to open the app, or click ✕ to dismiss it for the night.
+- **Live score in the tray icon**: The ring turns green when CBJ leads and red when they trail (or keep the team logo pinned).
+- **Stream delay**: Hold back scores, horn, and alerts by 0–180 s so a lagging stream doesn't get spoiled.
+- **Spoiler mode** (one click in the header): Hides final scores, results, records, standings, shot charts, and headlines until you click *Reveal*. Made for watching a replay later.
+- **Watch button**: Opens Prime Video (Blue Jackets Hockey Network), ESPN+, Fubo, or the NHL where-to-watch page. You pick which in Settings.
 
 **Between games**
-- **Games**: regular-season, preseason, and playoff records (W-L-OTL, goals for/against, differential); the next 10 games with venue and TV; recent results with three stars, scoring, and penalties; team scoring leaders.
-- **Standings**: the Metropolitan Division, Eastern Conference division leaders, and the wild-card race with the playoff cut line marked.
-- **News & Media**: merged headlines and videos from NHL.com, ESPN, The Cannon, 1st Ohio Battery, r/BlueJackets, and YouTube (official Blue Jackets, Locked On CBJ, and NHL highlights), with quick source filters and direct VOD links.
-- **Roster & player cards**: click any player for a headshot, bio, draft info, season and career stats, and the last 5 games.
+- **Games**: Regular-season, preseason, and playoff records (W-L-OTL, goals for/against, differential); the next 10 games with venue and TV; recent results with three stars, scoring, and penalties; team scoring leaders.
+- **Standings**: The Metropolitan Division, Eastern Conference division leaders, and the wild-card race with the playoff cut line marked.
+- **News & Media**: Merged headlines and videos from NHL.com, ESPN, The Cannon, 1st Ohio Battery, r/BlueJackets, and YouTube (official Blue Jackets, Locked On CBJ, and NHL highlights), with quick source filters and direct VOD links.
+- **Roster & player cards**: Click any player for a headshot, bio, draft info, season and career stats, and the last 5 games.
 - Sharp text on high-DPI displays, and a tray menu for everything.
+
+## 🏒 32-Team Interchangeability & Forking
+
+Built from the ground up to support all 32 NHL franchises. You can re-key the entire application for any team in seconds:
+```powershell
+# Test any team with zero code changes:
+$env:NHL_SENTINEL_TEAM = "TOR"  # Toronto Maple Leafs
+py run_sentinel.pyw
+```
+See **[FORKING.md](FORKING.md)** for the complete guide to customizing colors, subreddits, regional TV networks, custom horns, and compiling executables for your favorite team.
 
 ## Install
 

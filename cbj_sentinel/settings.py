@@ -20,6 +20,7 @@ DEFAULTS: Dict[str, Any] = {
     "puck_drop_reminder": True,
     "spoiler_mode": False,
     "mini_overlay": True,
+    "ticker_bar": False,
     "start_with_windows": False,
     "tray_live_score": False,
     "delay_seconds": 0,
@@ -27,8 +28,17 @@ DEFAULTS: Dict[str, Any] = {
     "watch": "prime",
     "overlay_x": -1,
     "overlay_y": -1,
+    "ticker_x": -1,
+    "ticker_y": -1,
 }
-LIMITS = {"delay_seconds": (0, 180), "volume": (0, 100), "overlay_x": (-1, 20000), "overlay_y": (-1, 20000)}
+LIMITS = {
+    "delay_seconds": (0, 180),
+    "volume": (0, 100),
+    "overlay_x": (-1, 20000),
+    "overlay_y": (-1, 20000),
+    "ticker_x": (-1, 20000),
+    "ticker_y": (-1, 20000),
+}
 RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
 
 
