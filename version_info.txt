@@ -19,11 +19,11 @@ VSVersionInfo(
         StringTable(
           '040904B0',
           [
-            StringStruct('CompanyName', 'MyMonocle Productions'),
+            StringStruct('CompanyName', 'Monocle Productions LLC'),
             StringStruct('FileDescription', 'CBJ Gameday Sentinel - Unofficial Columbus Blue Jackets Desktop Tracker'),
             StringStruct('FileVersion', '1.3.0.0'),
             StringStruct('InternalName', 'CBJGamedaySentinel'),
-            StringStruct('LegalCopyright', 'Copyright \xa9 2026 MyMonocle Productions. Open source under MIT License.'),
+            StringStruct('LegalCopyright', 'Copyright \xa9 2026 Monocle Productions LLC. Open source under MIT License.'),
             StringStruct('OriginalFilename', 'CBJGamedaySentinel.exe'),
             StringStruct('ProductName', 'CBJ Gameday Sentinel'),
             StringStruct('ProductVersion', '1.3.0.0'),
