@@ -20,7 +20,7 @@ An unofficial, lightweight Windows system-tray app for Columbus Blue Jackets fan
 **Between games**
 - **Games**: regular-season, preseason, and playoff records (W-L-OTL, goals for/against, differential); the next 10 games with venue and TV; recent results with three stars, scoring, and penalties; team scoring leaders.
 - **Standings**: the Metropolitan Division, Eastern Conference division leaders, and the wild-card race with the playoff cut line marked.
-- **News**: merged headlines from NHL.com, ESPN, The Cannon, 1st Ohio Battery, and r/BlueJackets, with per-source filters.
+- **News & Media**: merged headlines and videos from NHL.com, ESPN, The Cannon, 1st Ohio Battery, r/BlueJackets, and YouTube (official Blue Jackets, Locked On CBJ, and NHL highlights), with quick source filters and direct VOD links.
 - **Roster & player cards**: click any player for a headshot, bio, draft info, season and career stats, and the last 5 games.
 - Sharp text on high-DPI displays, and a tray menu for everything.
 
@@ -53,6 +53,7 @@ Files are stored in `%APPDATA%\CBJGamedaySentinel\`. To uninstall, untick *Start
 - **NHL** (`api-web.nhle.com`, `forge-dapi.d3.nhle.com`, `assets.nhle.com`): scores, schedule, stats, standings, roster, player cards, headshots, and official news. These public endpoints are undocumented and may change without notice. If something breaks, please open an issue. Records are computed from final scores, and they match NHL.com standings, including the convention that a shootout win counts as one goal.
 - **ESPN** (`site.api.espn.com`, `a.espncdn.com`): team news and the team logo image.
 - **The Cannon**, **1st Ohio Battery**, **r/BlueJackets**: public RSS/Atom feeds. Articles open on the original sites.
+- **YouTube** (`www.youtube.com`): public Atom video feeds for official CBJ channel, Locked On CBJ, and NHL highlights. Clicking a video opens the VOD directly in your browser.
 
 ## Development
 ```powershell

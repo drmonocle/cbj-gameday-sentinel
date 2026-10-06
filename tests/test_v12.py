@@ -101,3 +101,35 @@ def test_hardware_volume_modulation():
     assets.set_volume(150)
     assert assets._volume == 100
     assets.set_volume(80)
+
+
+YT_SAMPLE_ATOM = b"""<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xmlns:media="http://search.yahoo.com/mrss/">
+  <title>Columbus Blue Jackets</title>
+  <entry>
+    <title>Great News To Start The Week!</title>
+    <link rel="alternate" href="https://www.youtube.com/watch?v=WW20XGZvUvM"/>
+    <published>2026-10-05T18:51:29+00:00</published>
+    <media:group>
+      <media:description>Damon Severson was back to full participation at practice today!</media:description>
+    </media:group>
+  </entry>
+</feed>"""
+
+
+def test_youtube_atom_feed_parses():
+    items = data.parse_feed(YT_SAMPLE_ATOM, "YouTube · Blue Jackets")
+    assert len(items) == 1
+    it = items[0]
+    assert it["title"] == "Great News To Start The Week!"
+    assert it["link"] == "https://www.youtube.com/watch?v=WW20XGZvUvM"
+    assert "Damon Severson" in it["desc"]
+    assert it["ts"] > 0
+
+
+def test_youtube_hosts_allowlisted():
+    assert "www.youtube.com" in config.FETCH_HOSTS
+    assert "www.youtube.com" in config.BROWSER_HOSTS
+    assert "youtu.be" in config.BROWSER_HOSTS
+    assert any(s["id"] == "yt_cbj" for s in config.NEWS_SOURCES)
+

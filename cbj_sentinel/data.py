@@ -257,12 +257,16 @@ def parse_feed(raw: bytes, source: str = "", limit: int = 20) -> List[Dict[str, 
         for it in channel.findall("item")[:limit]:
             items.append(_item(source, it.findtext("title"), it.findtext("link"),
                                it.findtext("description"), _ts(it.findtext("pubDate"))))
-    elif root.tag == _ATOM + "feed":                          # Atom (e.g. Reddit)
+    elif root.tag == _ATOM + "feed":                          # Atom (e.g. Reddit, YouTube)
+        _MRSS = "{http://search.yahoo.com/mrss/}"
         for en in root.findall(_ATOM + "entry")[:limit]:
             link = en.find(_ATOM + "link")
+            desc = (en.findtext(_ATOM + "summary")
+                    or en.findtext(f"{_MRSS}group/{_MRSS}description")
+                    or en.findtext(_ATOM + "content") or "")
             items.append(_item(source, en.findtext(_ATOM + "title"),
                                link.get("href") if link is not None else "",
-                               "", _ts(en.findtext(_ATOM + "updated") or en.findtext(_ATOM + "published"))))
+                               desc, _ts(en.findtext(_ATOM + "updated") or en.findtext(_ATOM + "published"))))
     return items
 
 

@@ -717,7 +717,11 @@ class SentinelApp:
             return data.parse_forge(net.fetch_json(src["url"]), src["name"])
         if src["kind"] == "espn":
             return data.parse_espn(net.fetch_json(src["url"]), src["name"])
-        return data.parse_feed(net.fetch_bytes(src["url"], C.MAX_FEED_BYTES, timeout=20), src["name"])
+        items = data.parse_feed(net.fetch_bytes(src["url"], C.MAX_FEED_BYTES, timeout=20), src["name"])
+        if src.get("filter"):
+            keywords = [k.strip().lower() for k in src["filter"].split(",") if k.strip()]
+            items = [i for i in items if any(k in i["title"].lower() or k in i["desc"].lower() for k in keywords)]
+        return items
 
     @classmethod
     def _fetch_news(cls) -> Dict[str, List[dict]]:
@@ -1284,14 +1288,42 @@ class SentinelApp:
         btn(top, "Official team news \u2197", lambda: net.open_in_browser(C.OFFICIAL_NEWS_URL), size=8).pack(side="right")
         filters = tk.Frame(p, bg=C.BG)
         filters.pack(fill="x", pady=(px(6), px(4)))
-        names = [("all", "All")] + [(s["name"], s["name"]) for s in C.NEWS_SOURCES]
-        for key, text in names:
+        filter_specs = [
+            ("all", "All"),
+            ("nhl", "NHL.com"),
+            ("espn", "ESPN"),
+            ("cannon", "The Cannon"),
+            ("1ob", "1st Ohio Battery"),
+            ("reddit", "Reddit"),
+            ("youtube", "\u25B6 YouTube"),
+        ]
+        for key, text in filter_specs:
             on = self.news_filter == key
-            b = btn(filters, text, lambda k=key: self._set_news_filter(k), bg=C.RED if on else C.CARD,
+            b = btn(filters, text, lambda k=key: self._set_news_filter(k),
+                    bg=("#b71c1c" if key == "youtube" else C.RED) if on else C.CARD,
                     fg=C.TEXT if on else C.MUTED, size=8, bold=on)
             b.configure(padx=px(6), pady=px(2))
             b.pack(side="left", padx=(0, px(4)))
-        items = [i for i in self.news if self.news_filter in ("all", i["source"])]
+
+        def matches(item: dict) -> bool:
+            if self.news_filter == "all":
+                return True
+            src = item.get("source", "").lower()
+            if self.news_filter == "youtube":
+                return "youtube" in src or "youtube.com" in item.get("link", "")
+            if self.news_filter == "nhl":
+                return "nhl.com" in src
+            if self.news_filter == "espn":
+                return "espn" in src
+            if self.news_filter == "cannon":
+                return "cannon" in src
+            if self.news_filter == "1ob":
+                return "1st ohio battery" in src or "1ob" in src
+            if self.news_filter == "reddit":
+                return "reddit" in src or "r/bluejackets" in src
+            return self.news_filter.lower() in src
+
+        items = [i for i in self.news if matches(i)]
         if self.spoiler_gate():
             self._spoiler_card(p, "Headlines")
             return
@@ -1312,7 +1344,10 @@ class SentinelApp:
             if safe:
                 link = item["link"]
                 title.bind("<Button-1>", lambda e, u=link: net.open_in_browser(u))
-                btn(c, "Read \u2197", lambda u=link: net.open_in_browser(u), size=8).pack(anchor="e", pady=(px(4), 0))
+                is_video = "youtube.com" in link or "youtu.be" in link or "youtube" in item.get("source", "").lower()
+                btn_text = "\u25B6 Watch on YouTube \u2197" if is_video else "Read \u2197"
+                btn_bg = "#b71c1c" if is_video else C.HILITE
+                btn(c, btn_text, lambda u=link: net.open_in_browser(u), size=8, bg=btn_bg).pack(anchor="e", pady=(px(4), 0))
         lbl(p, "Headlines link to their original publishers and open in your browser.", 8, fg=C.MUTED,
             bg=C.BG).pack(anchor="w", pady=(px(6), 0))
 

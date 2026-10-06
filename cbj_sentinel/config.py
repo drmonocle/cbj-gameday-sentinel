@@ -39,6 +39,13 @@ NEWS_SOURCES = (
     {"id": "cannon", "name": "The Cannon", "kind": "feed", "url": "https://www.jacketscannon.com/feed/"},
     {"id": "1ob", "name": "1st Ohio Battery", "kind": "feed", "url": "https://www.1stohiobattery.com/feed"},
     {"id": "reddit", "name": "r/BlueJackets", "kind": "feed", "url": "https://www.reddit.com/r/BlueJackets/.rss"},
+    {"id": "yt_cbj", "name": "YouTube \u00b7 Blue Jackets", "kind": "feed",
+     "url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCxdPjcb73fJilPpcRxgzi3A"},
+    {"id": "yt_lockedon", "name": "YouTube \u00b7 Locked On CBJ", "kind": "feed",
+     "url": "https://www.youtube.com/feeds/videos.xml?channel_id=UC9Tsndgsrew5fjeXhsdHYhw"},
+    {"id": "yt_nhl", "name": "YouTube \u00b7 NHL Highlights", "kind": "yt_filter",
+     "filter": "blue jackets,cbj,columbus",
+     "url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCqFMzb-4AUf6WAIbl132QKA"},
 )
 
 NHL_WEB = "https://www.nhl.com"
@@ -67,6 +74,7 @@ FETCH_HOSTS = frozenset({
     "www.reddit.com",            # r/BlueJackets public RSS
     "api.github.com",            # optional update check
     "a.espncdn.com",             # team logo (downloaded once, cached locally)
+    "www.youtube.com",           # YouTube channel feeds (Atom RSS)
 })
 # The Blue Jackets logo is a trademark of the club. It is not stored in this
 # repository; the app downloads it for display and caches it in %APPDATA%.
