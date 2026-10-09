@@ -1,0 +1,45 @@
+name: build-exe
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Tag must match the app version
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: powershell
+        run: |
+          $v = python -c "from cbj_sentinel import __version__; print(__version__)"
+          if ("v$v" -ne "${{ github.ref_name }}") { throw "Tag ${{ github.ref_name }} does not match __version__ $v" }
+      - name: Build exe (runs tests, then PyInstaller)
+        shell: powershell
+        run: powershell -ExecutionPolicy Bypass -File scripts\build_exe.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CBJGamedaySentinel-windows
+          path: |
+            dist/CBJGamedaySentinel.exe
+            dist/SHA256SUMS.txt
+          if-no-files-found: error
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $lines = Get-Content "release_notes\$tag.md"
+          $title = $lines[0] -replace '^#\s*', ''
+          $hash = (Get-FileHash dist\CBJGamedaySentinel.exe -Algorithm SHA256).Hash
+          $body = ($lines | Select-Object -Skip 1) -join "`n"
+          $body += "`n`n### Checksums & Verification`n- ``CBJGamedaySentinel.exe``: ``$hash```n"
+          Set-Content -Path notes.md -Value $body -Encoding utf8
+          gh release create $tag dist\CBJGamedaySentinel.exe dist\SHA256SUMS.txt --title "$title" --notes-file notes.md

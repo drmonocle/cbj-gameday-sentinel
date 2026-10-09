@@ -1,6 +1,6 @@
 [project]
 name = "cbj-gameday-sentinel"
-version = "1.4.0"
+version = "1.4.1"
 description = "Unofficial Columbus Blue Jackets system-tray ticker for Windows: live scores, goal horn, results, roster, and news."
 readme = "README.md"
 license = { text = "MIT" }
