@@ -443,6 +443,28 @@ def penalty_lines(landing: Dict[str, Any], limit: int = 12) -> List[str]:
     return lines[-limit:]
 
 
+SHOT_CHART_GAME_TYPES = (2, 3)   # regular season + playoffs; preseason is excluded from season views
+
+
+def shot_chart_games(games: List[dict]) -> List[dict]:
+    """Games that count toward the combined season shot chart."""
+    return [g for g in games if g.get("gameType") in SHOT_CHART_GAME_TYPES]
+
+
+def _attack_sign(play: Dict[str, Any], owner: Any, home_id: Any, away_id: Any) -> Optional[int]:
+    """+1 if ``owner`` attacks the net at x=+89 on this play, -1 for x=-89, None if unknown.
+
+    ``homeTeamDefendingSide`` ("left"/"right") flips between periods, so it is
+    the only reliable way to orient a shot. Without it we cannot tell a long
+    shot from the team's own half from a short one in the offensive zone.
+    """
+    side = str(play.get("homeTeamDefendingSide") or "").lower()
+    if side not in ("left", "right") or owner not in (home_id, away_id) or home_id == away_id:
+        return None
+    home_attacks_right = side == "left"
+    return 1 if (owner == home_id) == home_attacks_right else -1
+
+
 def parse_shot_chart(pbp: Dict[str, Any], team_id: int = 29, team_abbrev: str = "CBJ") -> Dict[str, Any]:
     """Parse NHL play-by-play events into normalized shot chart coordinates and metadata."""
     if not isinstance(pbp, dict):
@@ -485,6 +507,9 @@ def parse_shot_chart(pbp: Dict[str, Any], team_id: int = 29, team_abbrev: str = 
         if type_key not in ("goal", "shot-on-goal", "missed-shot", "blocked-shot"):
             continue
 
+        if (p.get("periodDescriptor") or {}).get("periodType") == "SO":
+            continue    # shootout attempts are not game shots and use different geometry
+
         det = p.get("details") or {}
         x = det.get("xCoord")
         y = det.get("yCoord")
@@ -497,12 +522,16 @@ def parse_shot_chart(pbp: Dict[str, Any], team_id: int = 29, team_abbrev: str = 
         except (ValueError, TypeError):
             continue
 
-        # Normalize to offensive half-rink attacking right net at (89, 0)
-        nx = abs(fx)
-        ny = -fy if fx < 0 else fy
+        # Normalize so every shot attacks the net at (89, 0). Blocked shots skip
+        # the direction lookup (their event owner is ambiguous) and fall back
+        # to the sign of x.
+        owner = det.get("eventOwnerTeamId")
+        sign = None if type_key == "blocked-shot" else _attack_sign(p, owner, home_id, away_id)
+        if sign is None:
+            sign = -1 if fx < 0 else 1
+        nx, ny = fx * sign, fy * sign
         dist = round(math.sqrt((89.0 - nx) ** 2 + ny ** 2), 1)
 
-        owner = det.get("eventOwnerTeamId")
         is_target = bool(owner == target_id or (owner == team_id if team_id else False))
         if owner and not is_target:
             if is_home_target and owner == home_id:

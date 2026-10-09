@@ -64,8 +64,8 @@ That single change immediately re-keys:
 
 1. **Automatic Logo Fetch (Default):**
    The application automatically downloads your team's official 500x500 crest from ESPN's CDN (`https://a.espncdn.com/i/teamlogos/nhl/500/{tricode}.png`) and caches it in `%APPDATA%\<AppId>\team_logo.png`.
-2. **Bundled Offline Logo:**
-   To bundle a crisp offline logo directly with the application, replace `cbj_sentinel/logo.png` with a 500x500 or 256x256 transparent PNG.
+2. **Optional Local Logo:**
+   No team logo ships with this repository (trademark). To use an offline logo, put a 500x500 or 256x256 transparent PNG at `cbj_sentinel/logo.png` (git-ignored, so it won't be committed) or at `%APPDATA%\<AppId>\custom_logo.png`. For a release exe, add `--add-data "cbj_sentinel/logo.png;cbj_sentinel"` to `scripts\build_exe.ps1`. Without any logo the app draws a generic puck icon.
 3. **Executable Windows Icon (`app.ico`):**
    To change the Windows `.exe` desktop icon:
    ```powershell
@@ -159,18 +159,18 @@ All 32 NHL franchises are pre-configured in `cbj_sentinel/config.py`:
 | **CGY** | Calgary Flames | Pacific | West | 20 | 3 | `#C8102E` | `#F1BE48` | `r/CalgaryFlames` |
 | **CHI** | Chicago Blackhawks | Central | West | 16 | 4 | `#CF0A2C` | `#000000` | `r/hawks` |
 | **COL** | Colorado Avalanche | Central | West | 21 | 17 | `#6F263D` | `#236192` | `r/ColoradoAvalanche` |
-| **DAL** | Dallas Stars | Central | West | 25 | 6 | `#006847` | `#8F8F8C` | `r/DallasStars` |
+| **DAL** | Dallas Stars | Central | West | 25 | 9 | `#006847` | `#8F8F8C` | `r/DallasStars` |
 | **DET** | Detroit Red Wings | Atlantic | East | 17 | 5 | `#CE1126` | `#FFFFFF` | `r/DetroitRedWings` |
-| **EDM** | Edmonton Oilers | Pacific | West | 22 | 8 | `#041E42` | `#FF4C00` | `r/EdmontonOilers` |
+| **EDM** | Edmonton Oilers | Pacific | West | 22 | 6 | `#041E42` | `#FF4C00` | `r/EdmontonOilers` |
 | **FLA** | Florida Panthers | Atlantic | East | 13 | 26 | `#041E42` | `#C8102E` | `r/FloridaPanthers` |
-| **LAK** | Los Angeles Kings | Pacific | West | 26 | 9 | `#111111` | `#A2AAAD` | `r/losangeleskings` |
+| **LAK** | Los Angeles Kings | Pacific | West | 26 | 8 | `#111111` | `#A2AAAD` | `r/losangeleskings` |
 | **MIN** | Minnesota Wild | Central | West | 30 | 30 | `#154734` | `#A6192E` | `r/wildhockey` |
 | **MTL** | Montreal Canadiens | Atlantic | East | 8 | 10 | `#AF1E2D` | `#192168` | `r/Habs` |
 | **NJD** | New Jersey Devils | Metro | East | 1 | 11 | `#CE1126` | `#000000` | `r/devils` |
 | **NSH** | Nashville Predators | Central | West | 18 | 27 | `#FFB81C` | `#041E42` | `r/Predators` |
 | **NYI** | New York Islanders | Metro | East | 2 | 12 | `#00539B` | `#F47920` | `r/NewYorkIslanders` |
 | **NYR** | New York Rangers | Metro | East | 3 | 13 | `#0038A8` | `#CE1126` | `r/rangers` |
-| **OTT** | Ottawa Senators | Atlantic | East | 9 | 14 | `#C8102E` | `#000000` | `r/ottawasensors` |
+| **OTT** | Ottawa Senators | Atlantic | East | 9 | 14 | `#C8102E` | `#000000` | `r/OttawaSenators` |
 | **PHI** | Philadelphia Flyers | Metro | East | 4 | 15 | `#F74902` | `#000000` | `r/Flyers` |
 | **PIT** | Pittsburgh Penguins | Metro | East | 5 | 16 | `#000000` | `#FCB514` | `r/penguins` |
 | **SEA** | Seattle Kraken | Pacific | West | 55 | 124292 | `#001628` | `#99D9D9` | `r/SeattleKraken` |
@@ -178,7 +178,7 @@ All 32 NHL franchises are pre-configured in `cbj_sentinel/config.py`:
 | **STL** | St. Louis Blues | Central | West | 19 | 19 | `#002F87` | `#FCB514` | `r/stlouisblues` |
 | **TBL** | Tampa Bay Lightning | Atlantic | East | 14 | 20 | `#002868` | `#FFFFFF` | `r/TampaBayLightning` |
 | **TOR** | Toronto Maple Leafs | Atlantic | East | 10 | 21 | `#00205B` | `#FFFFFF` | `r/leafs` |
-| **UTA** | Utah Hockey Club | Central | West | 59 | 140656 | `#010101` | `#69B3E7` | `r/Utah_Hockey` |
+| **UTA** | Utah Mammoth | Central | West | 59 | 140656 | `#010101` | `#69B3E7` | `r/Utah_Hockey` |
 | **VAN** | Vancouver Canucks | Pacific | West | 23 | 22 | `#00205B` | `#00843D` | `r/canucks` |
 | **VGK** | Vegas Golden Knights | Pacific | West | 54 | 37 | `#B4975A` | `#333F48` | `r/goldenknights` |
 | **WPG** | Winnipeg Jets | Central | West | 52 | 28 | `#041E42` | `#004C97` | `r/winnipegjets` |

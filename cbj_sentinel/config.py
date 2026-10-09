@@ -26,25 +26,25 @@ TEAM_PRESETS = {
     "DET": {"name": "Detroit Red Wings", "short": "Red Wings", "city": "Detroit", "division": "A", "conference": "E", "nhl_id": 17, "espn_id": 5, "primary": "#CE1126", "secondary": "#FFFFFF", "accent": "#CE1126", "subreddit": "DetroitRedWings"},
     "FLA": {"name": "Florida Panthers", "short": "Panthers", "city": "Sunrise", "division": "A", "conference": "E", "nhl_id": 13, "espn_id": 26, "primary": "#041E42", "secondary": "#C8102E", "accent": "#B9975B", "subreddit": "FloridaPanthers"},
     "MTL": {"name": "Montreal Canadiens", "short": "Canadiens", "city": "Montreal", "division": "A", "conference": "E", "nhl_id": 8, "espn_id": 10, "primary": "#AF1E2D", "secondary": "#192168", "accent": "#FFFFFF", "subreddit": "Habs"},
-    "OTT": {"name": "Ottawa Senators", "short": "Senators", "city": "Ottawa", "division": "A", "conference": "E", "nhl_id": 9, "espn_id": 14, "primary": "#C8102E", "secondary": "#000000", "accent": "#D69F0F", "subreddit": "ottawasensors"},
+    "OTT": {"name": "Ottawa Senators", "short": "Senators", "city": "Ottawa", "division": "A", "conference": "E", "nhl_id": 9, "espn_id": 14, "primary": "#C8102E", "secondary": "#000000", "accent": "#D69F0F", "subreddit": "OttawaSenators"},
     "TBL": {"name": "Tampa Bay Lightning", "short": "Lightning", "city": "Tampa", "division": "A", "conference": "E", "nhl_id": 14, "espn_id": 20, "primary": "#002868", "secondary": "#FFFFFF", "accent": "#002868", "subreddit": "TampaBayLightning"},
     "TOR": {"name": "Toronto Maple Leafs", "short": "Maple Leafs", "city": "Toronto", "division": "A", "conference": "E", "nhl_id": 10, "espn_id": 21, "primary": "#00205B", "secondary": "#FFFFFF", "accent": "#00205B", "subreddit": "leafs"},
 
     # Central (Western)
     "CHI": {"name": "Chicago Blackhawks", "short": "Blackhawks", "city": "Chicago", "division": "C", "conference": "W", "nhl_id": 16, "espn_id": 4, "primary": "#CF0A2C", "secondary": "#000000", "accent": "#FFD100", "subreddit": "hawks"},
     "COL": {"name": "Colorado Avalanche", "short": "Avalanche", "city": "Denver", "division": "C", "conference": "W", "nhl_id": 21, "espn_id": 17, "primary": "#6F263D", "secondary": "#236192", "accent": "#A2AAAD", "subreddit": "ColoradoAvalanche"},
-    "DAL": {"name": "Dallas Stars", "short": "Stars", "city": "Dallas", "division": "C", "conference": "W", "nhl_id": 25, "espn_id": 6, "primary": "#006847", "secondary": "#8F8F8C", "accent": "#111111", "subreddit": "DallasStars"},
+    "DAL": {"name": "Dallas Stars", "short": "Stars", "city": "Dallas", "division": "C", "conference": "W", "nhl_id": 25, "espn_id": 9, "primary": "#006847", "secondary": "#8F8F8C", "accent": "#111111", "subreddit": "DallasStars"},
     "MIN": {"name": "Minnesota Wild", "short": "Wild", "city": "Saint Paul", "division": "C", "conference": "W", "nhl_id": 30, "espn_id": 30, "primary": "#154734", "secondary": "#A6192E", "accent": "#EAAA00", "subreddit": "wildhockey"},
     "NSH": {"name": "Nashville Predators", "short": "Predators", "city": "Nashville", "division": "C", "conference": "W", "nhl_id": 18, "espn_id": 27, "primary": "#FFB81C", "secondary": "#041E42", "accent": "#FFFFFF", "subreddit": "Predators"},
     "STL": {"name": "St. Louis Blues", "short": "Blues", "city": "St. Louis", "division": "C", "conference": "W", "nhl_id": 19, "espn_id": 19, "primary": "#002F87", "secondary": "#FCB514", "accent": "#041E42", "subreddit": "stlouisblues"},
-    "UTA": {"name": "Utah Hockey Club", "short": "Utah HC", "city": "Salt Lake City", "division": "C", "conference": "W", "nhl_id": 59, "espn_id": 140656, "primary": "#010101", "secondary": "#69B3E7", "accent": "#FFFFFF", "subreddit": "Utah_Hockey"},
+    "UTA": {"name": "Utah Mammoth", "short": "Mammoth", "city": "Salt Lake City", "division": "C", "conference": "W", "nhl_id": 59, "espn_id": 140656, "primary": "#010101", "secondary": "#69B3E7", "accent": "#FFFFFF", "subreddit": "Utah_Hockey"},
     "WPG": {"name": "Winnipeg Jets", "short": "Jets", "city": "Winnipeg", "division": "C", "conference": "W", "nhl_id": 52, "espn_id": 28, "primary": "#041E42", "secondary": "#004C97", "accent": "#AC162C", "subreddit": "winnipegjets"},
 
     # Pacific (Western)
     "ANA": {"name": "Anaheim Ducks", "short": "Ducks", "city": "Anaheim", "division": "P", "conference": "W", "nhl_id": 24, "espn_id": 25, "primary": "#F47A38", "secondary": "#B9975B", "accent": "#000000", "subreddit": "AnaheimDucks"},
     "CGY": {"name": "Calgary Flames", "short": "Flames", "city": "Calgary", "division": "P", "conference": "W", "nhl_id": 20, "espn_id": 3, "primary": "#C8102E", "secondary": "#F1BE48", "accent": "#111111", "subreddit": "CalgaryFlames"},
-    "EDM": {"name": "Edmonton Oilers", "short": "Oilers", "city": "Edmonton", "division": "P", "conference": "W", "nhl_id": 22, "espn_id": 8, "primary": "#041E42", "secondary": "#FF4C00", "accent": "#FFFFFF", "subreddit": "EdmontonOilers"},
-    "LAK": {"name": "Los Angeles Kings", "short": "Kings", "city": "Los Angeles", "division": "P", "conference": "W", "nhl_id": 26, "espn_id": 9, "primary": "#111111", "secondary": "#A2AAAD", "accent": "#FFFFFF", "subreddit": "losangeleskings"},
+    "EDM": {"name": "Edmonton Oilers", "short": "Oilers", "city": "Edmonton", "division": "P", "conference": "W", "nhl_id": 22, "espn_id": 6, "primary": "#041E42", "secondary": "#FF4C00", "accent": "#FFFFFF", "subreddit": "EdmontonOilers"},
+    "LAK": {"name": "Los Angeles Kings", "short": "Kings", "city": "Los Angeles", "division": "P", "conference": "W", "nhl_id": 26, "espn_id": 8, "primary": "#111111", "secondary": "#A2AAAD", "accent": "#FFFFFF", "subreddit": "losangeleskings"},
     "SJS": {"name": "San Jose Sharks", "short": "Sharks", "city": "San Jose", "division": "P", "conference": "W", "nhl_id": 28, "espn_id": 18, "primary": "#006D75", "secondary": "#EA7200", "accent": "#000000", "subreddit": "SanJoseSharks"},
     "SEA": {"name": "Seattle Kraken", "short": "Kraken", "city": "Seattle", "division": "P", "conference": "W", "nhl_id": 55, "espn_id": 124292, "primary": "#001628", "secondary": "#99D9D9", "accent": "#E9072B", "subreddit": "SeattleKraken"},
     "VAN": {"name": "Vancouver Canucks", "short": "Canucks", "city": "Vancouver", "division": "P", "conference": "W", "nhl_id": 23, "espn_id": 22, "primary": "#00205B", "secondary": "#00843D", "accent": "#041C2C", "subreddit": "canucks"},
@@ -60,6 +60,12 @@ if TEAM not in TEAM_PRESETS:
 _p = TEAM_PRESETS[TEAM]
 APP_NAME = f"{_p['short']} Gameday Sentinel" if TEAM != "CBJ" else "CBJ Gameday Sentinel"
 APP_ID = f"{TEAM}GamedaySentinel" if TEAM != "CBJ" else "CBJGamedaySentinel"
+TEAM_NAME = _p["name"]
+TEAM_SHORT = _p["short"]
+# nhl.com URL path segment for the club's pages (differs from the nickname for Utah).
+NHL_TEAM_SLUG = {"UTA": "utah"}.get(TEAM, _p["short"].lower().replace(" ", ""))
+# ESPN's logo file names are not always the NHL tricode.
+_LOGO_SLUGS = {"NJD": "nj", "TBL": "tb", "SJS": "sj", "LAK": "la"}
 TEAM_DIVISION = _p["division"]
 TEAM_CONFERENCE = _p["conference"]
 ESPN_TEAM_ID = _p["espn_id"]
@@ -107,19 +113,25 @@ if TEAM == "CBJ":
          "url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCqFMzb-4AUf6WAIbl132QKA"},
     )
 
+REDDIT_NAME = f"r/{_p['subreddit']}"
+
 NHL_WEB = "https://www.nhl.com"
-OFFICIAL_NEWS_URL = f"{NHL_WEB}/{_p['short'].lower().replace(' ', '')}/news"
+OFFICIAL_NEWS_URL = f"{NHL_WEB}/{NHL_TEAM_SLUG}/news"
 
 # Where the "Watch" button goes. Prime Video hosts the Blue Jackets Hockey
 # Network for in-market fans (Ohio, Kentucky, West Virginia); this is the
 # channel page the team's own cbj.co/subscribe link redirects to.
 WATCH_OPTIONS = {
-    "prime": ("Prime Video \u00b7 Blue Jackets Hockey Network",
-              "https://www.amazon.com/gp/video/channel/19bfae52-c58d-83c8-3909-2f61654f1afb"),
     "espn": ("ESPN+ \u00b7 NHL Power Play (out-of-market)", "https://plus.espn.com/nhl"),
     "fubo": ("Fubo", "https://www.fubo.tv/"),
-    "nhl": ("NHL.com where-to-watch guide", f"{NHL_WEB}/bluejackets/fans/tune-in"),
+    "nhl": ("NHL.com where-to-watch guide", f"{NHL_WEB}/{NHL_TEAM_SLUG}/fans/tune-in"),
 }
+DEFAULT_WATCH = "nhl"
+if TEAM == "CBJ":
+    WATCH_OPTIONS = {"prime": ("Prime Video \u00b7 Blue Jackets Hockey Network",
+                               "https://www.amazon.com/gp/video/channel/19bfae52-c58d-83c8-3909-2f61654f1afb"),
+                     **WATCH_OPTIONS}
+    DEFAULT_WATCH = "prime"
 
 # --- Security allowlists (HTTPS only; exact host match) ---
 # Hosts the app may download from. Redirects are re-checked against this list.
@@ -137,7 +149,7 @@ FETCH_HOSTS = frozenset({
 })
 # The Blue Jackets logo is a trademark of the club. It is not stored in this
 # repository; the app downloads it for display and caches it in %APPDATA%.
-LOGO_URL = f"https://a.espncdn.com/i/teamlogos/nhl/500/{TEAM.lower()}.png"
+LOGO_URL = f"https://a.espncdn.com/i/teamlogos/nhl/500/{_LOGO_SLUGS.get(TEAM, TEAM.lower())}.png"
 LOGO_MAX_AGE_DAYS = 30
 # Hosts the app may open in the user's browser.
 BROWSER_HOSTS = frozenset({

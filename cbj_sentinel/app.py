@@ -457,6 +457,8 @@ class SentinelApp:
         self.news_filter = "all"
         self.selected_shot_game_id: Any = "combined"
         self._batch_fetching_shots = False
+        self._shots_inflight: set = set()
+        self._shots_failed: Dict[int, float] = {}
         self.revealed: set = set()
         self.goal_tracker = data.GoalTracker()
         self.opp_tracker = data.GoalTracker()
@@ -1008,8 +1010,10 @@ class SentinelApp:
         self._render_active(force=False)
 
     def _fetch_all_past_shot_charts(self) -> None:
-        past = data.split_schedule(self.schedule)[0]
-        missing = [int(g["id"]) for g in past if g.get("id") and int(g["id"]) not in self.shot_data]
+        past = data.shot_chart_games(data.split_schedule(self.schedule)[0])
+        now = time.monotonic()
+        missing = [int(g["id"]) for g in past if g.get("id") and int(g["id"]) not in self.shot_data
+                   and now - self._shots_failed.get(int(g["id"]), -1e9) >= 60]
         if not missing or getattr(self, "_batch_fetching_shots", False):
             return
         self._batch_fetching_shots = True
@@ -1025,23 +1029,39 @@ class SentinelApp:
                         self.post(lambda g=gid, s=parsed: self._store_shot_chart(g, s))
                     except Exception as exc:
                         log.warning("Batch shot chart fetch failed for %s: %s", gid, exc)
+                        self.post(lambda g=gid: self._shots_failed.__setitem__(g, time.monotonic()))
+                    self.stop_event.wait(0.5)    # stay polite: ~80 games would otherwise burst
             finally:
                 self._batch_fetching_shots = False
 
         threading.Thread(target=run, name="batch_shots", daemon=True).start()
 
     def _fetch_shot_chart(self, game_id: int) -> None:
-        if game_id in self.shot_data:
+        if game_id in self.shot_data or game_id in self._shots_inflight:
             return
+        live = self.game or {}
+        if live.get("id") == game_id and live.get("gameState") in data.LIVE_STATES:
+            return      # the worker supplies live charts through the delay queue
+        if time.monotonic() - self._shots_failed.get(game_id, -1e9) < 60:
+            return      # recent failure: retry later instead of on every redraw
+        self._shots_inflight.add(game_id)
+
         def run():
+            shots = None
             try:
                 pbp = net.fetch_json(C.URL_PLAY_BY_PLAY.format(game_id=int(game_id)))
                 shots = data.parse_shot_chart(pbp, C.NHL_TEAM_ID, C.TEAM)
             except Exception as exc:
                 log.warning("Shot chart fetch failed for %s: %s", game_id, exc)
-                shots = {"shots": [], "counts": {}, "opponent": "OPP"}
-            self.post(lambda: self._store_shot_chart(game_id, shots))
+            self.post(lambda: self._shot_chart_done(game_id, shots))
         threading.Thread(target=run, daemon=True).start()
+
+    def _shot_chart_done(self, game_id: int, shots: Optional[dict]) -> None:
+        self._shots_inflight.discard(game_id)
+        if shots is None:
+            self._shots_failed[game_id] = time.monotonic()
+        else:
+            self._store_shot_chart(game_id, shots)
 
     def _store_shot_chart(self, game_id: int, shots: dict) -> None:
         self.shot_data[game_id] = shots
@@ -1058,8 +1078,6 @@ class SentinelApp:
         for key in ("schedule", "stats", "standings", "roster", "offline", "update_info"):
             if key in snap:
                 self._set(key, snap[key])
-        if snap.get("shot_data"):
-            self.shot_data.update(snap["shot_data"])
         if snap.get("news_by_source"):
             self.news_by_source = {**self.news_by_source, **snap["news_by_source"]}
             self._set("news", data.merge_news(*self.news_by_source.values()))
@@ -1130,7 +1148,7 @@ class SentinelApp:
         self.game_states[gid] = state
         if prev is not None and prev != state:
             if state in data.LIVE_STATES and prev not in data.LIVE_STATES + data.FINAL_STATES:
-                self.toast("Puck drop!", f"Blue Jackets {data.matchup_line(self.display_game(), C.TEAM)}")
+                self.toast("Puck drop!", f"{C.TEAM_SHORT} {data.matchup_line(self.display_game(), C.TEAM)}")
             elif state in data.FINAL_STATES and prev not in data.FINAL_STATES:
                 self._bump("_ui")
                 if self.settings["spoiler_mode"]:
@@ -1138,7 +1156,7 @@ class SentinelApp:
                 else:
                     res, ours, theirs = data.result_of(g, C.TEAM)
                     word = "win" if res == "W" else "fall"
-                    self.toast("Final", f"Blue Jackets {word} {ours}\u2013{theirs} {data.matchup_line(g, C.TEAM)}")
+                    self.toast("Final", f"{C.TEAM_SHORT} {word} {ours}\u2013{theirs} {data.matchup_line(g, C.TEAM)}")
         inter = bool(clock.get("inIntermission"))
         prev_i = self.intermissions.get(gid)
         self.intermissions[gid] = inter
@@ -1154,7 +1172,7 @@ class SentinelApp:
             assets.play_horn()
         if self.settings["popup_on_goal"]:
             self.show()
-        self.toast("\U0001F6A8 BLUE JACKETS GOAL!", " \u00b7 ".join(x for x in (scorer, score_txt, when) if x))
+        self.toast(f"\U0001F6A8 {C.TEAM_SHORT.upper()} GOAL!", " \u00b7 ".join(x for x in (scorer, score_txt, when) if x))
         self.flash_until = time.monotonic() + 5
         self.root.after(5100, self._render_live)
 
@@ -1272,7 +1290,7 @@ class SentinelApp:
             res, ours, theirs = data.result_of(g, C.TEAM)
             word = {"W": "WIN", "L": "LOSS", "OTL": "LOSS"}[res]
             self.l_big.configure(text=score, fg=C.TEXT)
-            self.l_when.configure(text=f"Blue Jackets {word} {ours}\u2013{theirs}{suffix}",
+            self.l_when.configure(text=f"{C.TEAM_SHORT} {word} {ours}\u2013{theirs}{suffix}",
                                   fg=C.GREEN if res == "W" else C.SILVER)
             self.l_venue.configure(text=f"{sog} \u00b7 {data.venue_line(g)}")
             self._set_text(self.t_goals, goals, "No goals.")
@@ -1295,7 +1313,7 @@ class SentinelApp:
         parts, ours = [], False
         if sit.get("pp"):
             ours = sit["pp"] == C.TEAM
-            who = "BLUE JACKETS" if ours else sit["pp"]
+            who = C.TEAM_SHORT.upper() if ours else sit["pp"]
             clock = f" \u00b7 {sit['time']}" if sit.get("time") else ""
             parts.append(f"\u26A1 {who} POWER PLAY ({sit['advantage']}){clock}")
         for team in sit.get("empty_net") or []:
@@ -1328,7 +1346,7 @@ class SentinelApp:
                     self.reminded.add(gid)
                     if self.settings["puck_drop_reminder"]:
                         self.toast(f"Puck drop in {max(1, int(secs // 60))} min",
-                                   f"Blue Jackets {data.matchup_line(target, C.TEAM)} \u00b7 "
+                                   f"{C.TEAM_SHORT} {data.matchup_line(target, C.TEAM)} \u00b7 "
                                    f"{data.local_start(target)} \u00b7 {data.venue_line(target)}")
         if reschedule and not self.stop_event.is_set():
             self.root.after(1000, self._tick)
@@ -1374,7 +1392,7 @@ class SentinelApp:
         past = data.split_schedule(self.schedule)[0]
         target = self.display_game() or self.next_game() or (past[-1] if past else None)
         if not self._open_gamecenter(target):
-            net.open_in_browser(f"{C.NHL_WEB}/bluejackets/schedule")
+            net.open_in_browser(f"{C.NHL_WEB}/{C.NHL_TEAM_SLUG}/schedule")
 
     @staticmethod
     def _open_gamecenter(game: Optional[dict]) -> bool:
@@ -1493,8 +1511,9 @@ class SentinelApp:
             table(card(p), ["GP", "PLAYER", "POS", "G", "A", "PTS", "+/-"], rows, [4, 22, 5, 4, 4, 5, 5],
                   accent_col=5, on_click=lambda i: self.open_player(leaders[i].get("playerId")))
 
-        section(p, "DID YOU KNOW?")
-        for title, body in FACTS:
+        if C.TEAM == "CBJ":
+            section(p, "DID YOU KNOW?")
+        for title, body in (FACTS if C.TEAM == "CBJ" else ()):
             c = card(p)
             lbl(c, title, 9, True, C.ACCENT).pack(anchor="w")
             lbl(c, body, 8, wraplength=520, justify="left").pack(anchor="w")
@@ -1556,6 +1575,9 @@ class SentinelApp:
 
     # ---- shots & heatmaps
     def _render_shots(self, p: tk.Frame) -> None:
+        if self.spoiler_gate():
+            self._spoiler_card(p, "Shot charts")
+            return
         past = list(reversed(data.split_schedule(self.schedule)[0]))
         if not past:
             c = card(p)
@@ -1625,7 +1647,8 @@ class SentinelApp:
 
         # Selected data resolution
         if self.selected_shot_game_id == "combined":
-            charts = [self.shot_data.get(int(g.get("id", 0))) for g in past if int(g.get("id", 0)) in self.shot_data]
+            counted = data.shot_chart_games(past)
+            charts = [self.shot_data[int(g.get("id", 0))] for g in counted if int(g.get("id", 0)) in self.shot_data]
             chart_payload = data.combine_shot_charts(charts, target_abbrev=C.TEAM)
         else:
             try:
@@ -1649,7 +1672,7 @@ class SentinelApp:
 
         if self.selected_shot_game_id == "combined":
             cnt = chart_payload.get("games_count", 0)
-            lbl(sum_card, f"SEASON TOTALS COMBINED \u00b7 {cnt} of {len(past)} Games Analyzed", 8, True, C.SILVER).pack(anchor="w")
+            lbl(sum_card, f"SEASON TOTALS COMBINED \u00b7 {cnt} of {len(counted)} Games Analyzed", 8, True, C.SILVER).pack(anchor="w")
             s_row = tk.Frame(sum_card, bg=C.CARD)
             s_row.pack(fill="x", pady=px(2))
             lbl(s_row, f"{target_goals} \u2013 {opp_goals}", 18, True, C.ACCENT).pack(side="left")
@@ -1750,7 +1773,7 @@ class SentinelApp:
     def _render_news(self, p: tk.Frame) -> None:
         top = tk.Frame(p, bg=C.BG)
         top.pack(fill="x")
-        lbl(top, "LATEST BLUE JACKETS NEWS", 10, True, bg=C.BG).pack(side="left")
+        lbl(top, f"LATEST {C.TEAM_SHORT.upper()} NEWS", 10, True, bg=C.BG).pack(side="left")
         btn(top, "Official team news \u2197", lambda: net.open_in_browser(C.OFFICIAL_NEWS_URL), size=8).pack(side="right")
         filters = tk.Frame(p, bg=C.BG)
         filters.pack(fill="x", pady=(px(6), px(4)))
@@ -1758,11 +1781,12 @@ class SentinelApp:
             ("all", "All"),
             ("nhl", "NHL.com"),
             ("espn", "ESPN"),
-            ("cannon", "The Cannon"),
-            ("1ob", "1st Ohio Battery"),
-            ("reddit", "Reddit"),
-            ("youtube", "\u25B6 YouTube"),
         ]
+        if C.TEAM == "CBJ":
+            filter_specs += [("cannon", "The Cannon"), ("1ob", "1st Ohio Battery")]
+        filter_specs.append(("reddit", "Reddit"))
+        if C.TEAM == "CBJ":
+            filter_specs.append(("youtube", "\u25B6 YouTube"))
         for key, text in filter_specs:
             on = self.news_filter == key
             b = btn(filters, text, lambda k=key: self._set_news_filter(k),
@@ -1786,7 +1810,7 @@ class SentinelApp:
             if self.news_filter == "1ob":
                 return "1st ohio battery" in src or "1ob" in src
             if self.news_filter == "reddit":
-                return "reddit" in src or "r/bluejackets" in src
+                return "reddit" in src or C.REDDIT_NAME.lower() in src
             return self.news_filter.lower() in src
 
         items = [i for i in self.news if matches(i)]
@@ -1974,7 +1998,7 @@ class SentinelApp:
         self.setting_vars = {}
         lbl(p, "SETTINGS", 10, True, bg=C.BG).pack(anchor="w")
         groups = (
-            ("Alerts", (("sound", "Play the goal horn when the Blue Jackets score"),
+            ("Alerts", (("sound", f"Play the goal horn when the {C.TEAM_SHORT} score"),
                         ("opponent_sound", "Play a soft chime when the opponent scores"),
                         ("toasts", "Windows notifications (goals, period ends, final)"),
                         ("puck_drop_reminder", "Remind me 30 minutes before puck drop"))),
@@ -2021,9 +2045,10 @@ class SentinelApp:
                      highlightthickness=0, font=(C.FONT, 9))
         om["menu"].configure(bg=C.CARD, fg=C.TEXT, activebackground=C.RED, font=(C.FONT, 9))
         om.pack(anchor="w", pady=(px(4), 0))
-        lbl(c, "Prime Video carries the Blue Jackets Hockey Network for fans in the team's home region. "
-               "Out-of-market fans usually watch on ESPN+.", 8, fg=C.MUTED, wraplength=520,
-            justify="left").pack(anchor="w", pady=(px(4), 0))
+        if "prime" in C.WATCH_OPTIONS:
+            lbl(c, "Prime Video carries the Blue Jackets Hockey Network for fans in the team's home region. "
+                   "Out-of-market fans usually watch on ESPN+.", 8, fg=C.MUTED, wraplength=520,
+                justify="left").pack(anchor="w", pady=(px(4), 0))
 
         c = card(p)
         lbl(c, "Goal horn", 9, True, C.ACCENT).pack(anchor="w")
@@ -2053,10 +2078,11 @@ class SentinelApp:
         if C.GITHUB_REPO:
             btn(row, "Project page \u2197", lambda: net.open_in_browser(C.REPO_URL), size=8,
                 bold=False).pack(side="left", padx=px(6))
-        lbl(c, "Unofficial fan project. Not affiliated with or endorsed by the Columbus Blue Jackets or the NHL. "
-               "The Blue Jackets name and logo are trademarks of the club and are shown only to identify the team. "
-               "Scores and stats from public NHL.com data; headlines from NHL.com, ESPN, The Cannon, "
-               "1st Ohio Battery and r/BlueJackets.", 8, fg=C.MUTED, wraplength=520, justify="left").pack(anchor="w")
+        sources = ("NHL.com, ESPN, The Cannon, 1st Ohio Battery and r/BlueJackets" if C.TEAM == "CBJ"
+                   else f"NHL.com, ESPN and {C.REDDIT_NAME}")
+        lbl(c, f"Unofficial fan project. Not affiliated with or endorsed by the {C.TEAM_NAME} or the NHL. "
+               f"The {C.TEAM_SHORT} name and logo are trademarks of the club and are shown only to identify the team. "
+               f"Scores and stats from public NHL.com data; headlines from {sources}.", 8, fg=C.MUTED, wraplength=520, justify="left").pack(anchor="w")
 
     def _on_delay(self, value: str) -> None:
         self.settings["delay_seconds"] = int(float(value))
@@ -2135,7 +2161,7 @@ def main(argv: Optional[List[str]] = None) -> None:
         if not minimized:
             r = tk.Tk()
             r.withdraw()
-            messagebox.showinfo(C.APP_NAME, "CBJ Gameday Sentinel is already running \u2014 look for the icon in your system tray.")
+            messagebox.showinfo(C.APP_NAME, f"{C.APP_NAME} is already running \u2014 look for the icon in your system tray.")
             r.destroy()
         return
     _enable_dpi_awareness()

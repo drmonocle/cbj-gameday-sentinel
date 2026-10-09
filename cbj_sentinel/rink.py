@@ -289,6 +289,8 @@ class ShotChart(tk.Frame):
         shown_opp_sog = 0
 
         for shot in self.shots:
+            if shot.get("x", 0) < 0:
+                continue    # from the shooter's own half: off this offensive-zone half-rink
             # Filters
             is_target = shot.get("is_cbj", False)
             stype = shot.get("type", "")
