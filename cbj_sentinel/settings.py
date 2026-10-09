@@ -25,7 +25,7 @@ DEFAULTS: Dict[str, Any] = {
     "tray_live_score": False,
     "delay_seconds": 0,
     "volume": 80,
-    "watch": "prime",
+    "watch": config.DEFAULT_WATCH,
     "overlay_x": -1,
     "overlay_y": -1,
     "ticker_x": -1,

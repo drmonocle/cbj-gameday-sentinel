@@ -135,10 +135,13 @@ def test_combine_shot_charts_multi_game():
 
 
 def test_shot_chart_independent_filters():
+    tk = pytest.importorskip("tkinter")
     from cbj_sentinel import rink
-    import tkinter as tk
 
-    root = tk.Tk()
+    try:
+        root = tk.Tk()
+    except tk.TclError:
+        pytest.skip("no display available")
     root.withdraw()
     sc = rink.ShotChart(root)
 
