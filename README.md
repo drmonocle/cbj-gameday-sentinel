@@ -7,7 +7,7 @@ An unofficial, lightweight Windows system-tray app for Columbus Blue Jackets fan
 ## Features
 
 **Gameday & Live Visuals**
-- **Interactive Ice Rink & Shot Chart**: An offensive-zone regulation NHL vector half-rink plotted from official play-by-play `(x, y)` coordinate data. Hover over any shot marker to inspect shooter name, shot type (wrist, slap, snap, backhand), distance, period, and high-danger slot classification. Includes period and team/goals filter toggles.
+- **Interactive Ice Rink & Shot Chart**: An offensive-zone regulation NHL vector half-rink plotted from official play-by-play `(x, y)` coordinate data. Hover over any shot marker to inspect shooter name, shot type (wrist, slap, snap, backhand), distance, period, and high-danger slot classification. Includes period and team/goals filter toggles. The season heatmap covers regular-season and playoff games (preseason and shootout attempts are left out).
 - **Compact Floating Ticker Bar**: Ultra-slim horizontal ribbon designed to float or dock on a second monitor while working or gaming. Displays live scores, clock, SOG, power plays, and recent scorers with one-click window expansion.
 - **Live tab**: Who CBJ is playing and where (full opponent name, arena, city, local puck-drop time, TV networks), with a live countdown and a one-click game preview / GameCenter link.
 - **During games**: Score, period and clock, shots, **power-play and goalie-pulled alerts**, a running scoring summary (PPG/SHG/EN tags), and a penalty log.
@@ -15,7 +15,7 @@ An unofficial, lightweight Windows system-tray app for Columbus Blue Jackets fan
 - **Windows notifications**: Goals, end of each period, final score, and a 30-minute puck-drop reminder.
 - **Mini scoreboard**: A small always-on-top overlay you can drag anywhere. Double-click it to open the app, or click ✕ to dismiss it for the night.
 - **Live score in the tray icon**: The ring turns green when CBJ leads and red when they trail (or keep the team logo pinned).
-- **Stream delay**: Hold back scores, horn, and alerts by 0–180 s so a lagging stream doesn't get spoiled.
+- **Stream delay**: Hold back scores, horn, alerts, and the live shot chart by 0–180 s so a lagging stream doesn't get spoiled.
 - **Spoiler mode** (one click in the header): Hides final scores, results, records, standings, shot charts, and headlines until you click *Reveal*. Made for watching a replay later.
 - **Watch button**: Opens Prime Video (Blue Jackets Hockey Network), ESPN+, Fubo, or the NHL where-to-watch page. You pick which in Settings.
 
@@ -39,7 +39,7 @@ See **[FORKING.md](FORKING.md)** for the complete guide to customizing colors, s
 ## Install
 
 ### Option A: Download the app (no Python needed)
-1. Get `CBJGamedaySentinel.exe` from the [Releases](https://github.com/drmonocle/cbj-gameday-sentinel/releases) page.
+1. Get `CBJGamedaySentinel.exe` from the [latest release](https://github.com/drmonocle/cbj-gameday-sentinel/releases/latest).
 2. Optional: check that `Get-FileHash .\CBJGamedaySentinel.exe` matches the SHA-256 listed in the release notes.
 3. Double-click it. Windows SmartScreen may warn because the exe is unsigned. Click **More info → Run anyway**, or use Option B.
 
@@ -75,7 +75,7 @@ python -m cbj_sentinel        # run with a console for debugging
 ```
 Logs are written to `%APPDATA%\CBJGamedaySentinel\sentinel.log`. The in-app "update available" check reads the latest GitHub Release of `drmonocle/cbj-gameday-sentinel` once a day (`GITHUB_REPO` in `cbj_sentinel/config.py`).
 
-To build a release: `powershell -ExecutionPolicy Bypass -File scripts\build_exe.ps1`
+To build the exe locally: `powershell -ExecutionPolicy Bypass -File scripts\build_exe.ps1`. Releases are built by GitHub Actions: push a `v*` tag (matching `__version__`) with a `release_notes/<tag>.md` file and the workflow builds the exe and publishes the release.
 
 ## License
 Code: MIT. See [LICENSE](LICENSE). The MIT license covers this project's code only, not team names, logos, or NHL data.
