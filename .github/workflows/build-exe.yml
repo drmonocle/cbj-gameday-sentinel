@@ -1,0 +1,23 @@
+name: build-exe
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/brave-cori-brzbgn]   # TEMPORARY: first test build; removed before merge
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build exe (runs tests, then PyInstaller)
+        shell: powershell
+        run: powershell -ExecutionPolicy Bypass -File scripts\build_exe.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CBJGamedaySentinel-windows
+          path: |
+            dist/CBJGamedaySentinel.exe
+            dist/SHA256SUMS.txt
+          if-no-files-found: error
