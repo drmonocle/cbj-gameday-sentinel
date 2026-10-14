@@ -1,46 +1,43 @@
-# Security Policy
+# Security Policy (CBJ Gameday Sentinel v2.0 - Tauri / Rust)
 
-## What the app does (and doesn't do)
+## Zero-Trust Architecture & Hardening
 
-- **Network:** Read-only HTTPS `GET` requests, only to an exact-match host allowlist (`FETCH_HOSTS` in `cbj_sentinel/config.py`):
-  - `api-web.nhle.com`: scores, schedule, stats, standings, roster, players
-  - `forge-dapi.d3.nhle.com`: official NHL.com news
-  - `assets.nhle.com`: player headshots
-  - `site.api.espn.com`: ESPN news
-  - `a.espncdn.com`: the team logo image (validated, re-encoded, and cached locally; refreshed every 30 days)
-  - `www.jacketscannon.com`, `www.1stohiobattery.com`, `www.reddit.com`, `www.youtube.com`: public RSS/Atom feeds
-  - `api.github.com`: optional once-a-day release check (only if the maintainer sets `GITHUB_REPO`)
+**CBJ Gameday Sentinel v2.0** is built on Tauri v2 + Rust with strict isolation between the frontend WebView and the native OS layer:
 
-  The app refuses any other host, plain `http`, non-443 ports, credentials in URLs, or a redirect to an unlisted host.
-- **No accounts, API keys, telemetry, analytics, or tracking.** Nothing about you leaves your computer except normal HTTP requests carrying a `User-Agent` that names the app.
-- **Browser links:** Opened only if they are `https` and on a separate allowlist (`BROWSER_HOSTS`): NHL, Amazon/Prime Video, ESPN, Fubo, the news sites above, YouTube, and GitHub. Lookalikes such as `www.nhl.com.evil.com` are rejected. This stops a tampered feed from launching local files, UNC paths, or other programs. It matters because on Windows, Python's `webbrowser.open` hands strings to `os.startfile`. NHL.com news links are built from a slug that must match `[a-z0-9-]`.
-- **Parsing untrusted data:**
-  - RSS/Atom containing a DTD or entity declarations is rejected, which prevents "billion laughs" entity expansion.
-  - All text is unescaped, stripped of tags and control characters, and length-capped.
-  - Responses are capped (5 MB JSON / 3 MB feeds / 2 MB images) and time out.
-  - Images must be PNG/JPEG/WEBP, are dimension-checked (≤ 4 MP) before decoding. Player headshots are never written to disk; the team logo is re-encoded and cached (see below).
-- **Custom horn import:** Only PCM `.wav` files of ≤ 10 MB and ≤ 30 s are accepted. They are validated with Python's `wave` module and copied into the app data folder. Playback uses the Windows `PlaySound` API, and no external player is launched.
-- **Settings file:** Loaded with strict type checks and value clamping. A corrupt or tampered `settings.json` falls back to defaults.
-- **Writes to disk:** Only inside `%APPDATA%\CBJGamedaySentinel\`:
-  - `settings.json`
-  - `sentinel.log`
-  - the generated `goal_horn_v2.wav` / `opponent_chime_v1.wav`, and volume-scaled `_play_*.wav` copies of them
-  - `team_logo.png` (the re-encoded team logo downloaded from ESPN)
-  - an optional `custom_horn.wav` and an optional user-supplied `custom_logo.png`
+1. **Strict Network Host Allowlist & SSRF Defense (`is_allowed_api_host`):**
+   - Read-only `HTTPS` requests (`--proto =https`, `--proto-redir =https`) are restricted exclusively to an explicit domain allowlist:
+     - `api-web.nhle.com`, `assets.nhle.com`, `wsr.nhle.com`, `*.nhle.com`, `*.d3.nhle.com` (Official NHL APIs & headshots)
+     - `*.espn.com`, `*.espncdn.com` (ESPN NHL news & logos)
+     - `*.reddit.com` (Subreddit community feeds)
+     - `api.github.com` (Release checks)
+   - Loopback (`localhost`, `127.0.0.1`, `::1`), link-local (`169.254.*`), and RFC1918 private LAN subnets (`192.168.*`, `10.*`, `172.16-31.*`) are strictly blocked.
 
-  If you enable *Start with Windows*, one per-user value is written to `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`. No admin rights are requested.
-- **No shell commands, `eval`, or dynamic code loading.** All UI updates happen on the Tk main thread.
+2. **CWE-88 Argument Injection Immunity:**
+   - The native proxy command passes the POSIX/Windows `"--"` operand terminator directly before the validated URL so inputs starting with `-` can never be interpreted as CLI flags.
 
-## Reporting a vulnerability
+3. **Resource & Payload Bounds:**
+   - Network responses are capped at **15 MB** (`--max-filesize 15728640`) with a **15-second** timeout (`--max-time 15`).
 
-Please open a private security advisory on GitHub (**Security → Report a vulnerability**) rather than a public issue. Include steps to reproduce and the version shown on the Settings tab.
+4. **External Browser Link Allowlist (`is_allowed_external_url`):**
+   - External links opened via `open_external_url` must use `https://` and match approved domains (`nhl.com`, `espn.com`, `amazon.com`, `reddit.com`, `youtube.com`, `github.com`).
 
-## Verifying downloads
+5. **Atomic Settings Persistence:**
+   - User settings are stored in `%APPDATA%\CBJGamedaySentinel\settings.json`, capped at **64 KB**, validated as JSON objects prior to write, and committed atomically via `.tmp` write-and-rename.
 
-Release `.exe` files are unsigned. Each release lists a SHA-256 hash. Check it with:
+6. **Windows Startup Registry Sanitization:**
+   - When *Start with Windows* is enabled, the executable path written to `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` is verified on disk and sanitized against quote or newline injection.
+
+7. **Content Security Policy (CSP):**
+   - Enforced in `src-tauri/tauri.conf.json`, restricting scripts, styles, images, and connections strictly to `'self'` and approved NHL/ESPN/GitHub endpoints.
+
+## Reporting a Vulnerability
+
+Please open a private security advisory on GitHub (**Security → Report a vulnerability**) rather than a public issue.
+
+## Verifying Downloads
+
+Every GitHub Release includes a `.sha256` checksum file. Verify your download with PowerShell:
 
 ```powershell
 Get-FileHash .\CBJGamedaySentinel.exe -Algorithm SHA256
 ```
-
-If you'd rather not run an unsigned binary, run from source (see README).

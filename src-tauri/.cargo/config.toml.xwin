@@ -1,0 +1,15 @@
+[target.x86_64-pc-windows-msvc]
+linker = "lld-link"
+rustflags = [
+    "-L", "native=C:/Users/TV/.xwin/VC/Tools/MSVC/14.44.17.14/lib/x86_64",
+    "-L", "native=C:/Users/TV/.xwin/Windows Kits/10/Lib/10.0.26100/ucrt/x86_64",
+    "-L", "native=C:/Users/TV/.xwin/Windows Kits/10/Lib/10.0.26100/um/x86_64",
+]
+
+[env]
+INCLUDE = "C:/Users/TV/.xwin/VC/Tools/MSVC/14.44.17.14/include;C:/Users/TV/.xwin/Windows Kits/10/Include/10.0.26100/ucrt;C:/Users/TV/.xwin/Windows Kits/10/Include/10.0.26100/um;C:/Users/TV/.xwin/Windows Kits/10/Include/10.0.26100/shared"
+LIB = "C:/Users/TV/.xwin/VC/Tools/MSVC/14.44.17.14/lib/x86_64;C:/Users/TV/.xwin/Windows Kits/10/Lib/10.0.26100/ucrt/x86_64;C:/Users/TV/.xwin/Windows Kits/10/Lib/10.0.26100/um/x86_64"
+CC = "cl.exe"
+CXX = "cl.exe"
+AR = "lib.exe"
+RC = "rc.exe"

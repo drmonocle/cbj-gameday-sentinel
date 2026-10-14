@@ -1,15 +1,34 @@
-__pycache__/
-*.py[cod]
-.pytest_cache/
-.venv/
-venv/
-build/
+# Node & Web
+node_modules/
 dist/
-*.spec
-*.log
-# Never commit team trademarks or personal customizations
-custom_logo.png
-custom_horn.wav
-cbj_logo*.png
-*.ico
-cbj_sentinel/logo.png
+dist-ssr/
+*.local
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Rust & Tauri
+src-tauri/target/
+src-tauri/gen/schemas/
+.xwin-cache/
+release/
+*.exe
+*.zip
+*.sha256
+
+# Sample / Scratch Dumps
+cbj_schedule.json
+landing_sample.json
+live_score_dump.json
+pbp_sample.json
+standings.json
+
+# System & IDE
+.DS_Store
+Thumbs.db
+.idea/
+*.suo
+*.user
+
+# Per-machine cargo config
+src-tauri/.cargo/config.toml
