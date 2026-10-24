@@ -168,28 +168,34 @@ export interface PlayerBio {
     regularSeason?: {
       subSeason?: {
         gamesPlayed: number;
-        goals: number;
-        assists: number;
-        points: number;
-        plusMinus: number;
-        pim: number;
+        goals?: number;
+        assists?: number;
+        points?: number;
+        plusMinus?: number;
+        pim?: number;
         savePctg?: number;
         goalsAgainstAvg?: number;
         wins?: number;
+        losses?: number;
+        otLosses?: number;
+        shutouts?: number;
       };
     };
   };
   careerTotals?: {
     regularSeason?: {
       gamesPlayed: number;
-      goals: number;
-      assists: number;
-      points: number;
-      plusMinus: number;
-      pim: number;
+      goals?: number;
+      assists?: number;
+      points?: number;
+      plusMinus?: number;
+      pim?: number;
       savePctg?: number;
       goalsAgainstAvg?: number;
       wins?: number;
+      losses?: number;
+      otLosses?: number;
+      shutouts?: number;
     };
   };
   last5Games?: Array<{

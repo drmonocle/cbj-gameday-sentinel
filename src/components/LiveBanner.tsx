@@ -2,7 +2,7 @@ import React from "react";
 import { GameInfo, StandingsRecord, TeamPreset } from "../types";
 import { getTeamLogoUrl } from "../config/teams";
 import { formatTimeRemaining } from "../services/nhlApi";
-import { Calendar, Tv, ExternalLink, Star, Flame, Swords } from "lucide-react";
+import { Calendar, Tv, ExternalLink, Star, Flame, Swords, BarChart3 } from "lucide-react";
 import { openExternalUrl } from "../services/platform";
 
 interface LiveBannerProps {
@@ -10,7 +10,9 @@ interface LiveBannerProps {
   nextGame: GameInfo | null;
   team: TeamPreset;
   landingData: Record<string, unknown> | null;
+  rightRailData?: Record<string, unknown> | null;
   spoilerMode: boolean;
+  watchTarget?: string;
   standings?: StandingsRecord[];
   schedule?: GameInfo[];
 }
@@ -38,7 +40,9 @@ export const LiveBanner: React.FC<LiveBannerProps> = ({
   nextGame,
   team,
   landingData,
+  rightRailData = null,
   spoilerMode,
+  watchTarget = "prime",
   standings = [],
   schedule = [],
 }) => {
@@ -103,10 +107,14 @@ export const LiveBanner: React.FC<LiveBannerProps> = ({
     .filter((v, i, a) => a.indexOf(v) === i)
     .join(", ");
 
-  const watchUrl =
-    team.id === "CBJ"
+  const watchUrl = (() => {
+    if (watchTarget === "fubo") return "https://www.fubo.tv/welcome/leagues/nhl";
+    if (watchTarget === "nhl") return "https://www.nhl.com/schedule";
+    if (watchTarget === "espn") return "https://plus.espn.com/nhl";
+    return team.id === "CBJ"
       ? "https://www.amazon.com/gp/video/channel/19bfae52-c58d-83c8-3909-2f61654f1afb"
       : "https://plus.espn.com/nhl";
+  })();
 
   // Scoring Summary: only parse when viewing an active or recently completed game
   const scoringPeriods = !isUpcoming
@@ -191,6 +199,66 @@ export const LiveBanner: React.FC<LiveBannerProps> = ({
   // Three Stars
   const starsList = !isUpcoming
     ? (((landingData?.summary as Record<string, unknown>)?.threeStars as Array<Record<string, unknown>>) || [])
+    : [];
+
+  // Team Boxscore Game Stats (from right-rail)
+  const rawTeamStats = !isUpcoming
+    ? ((rightRailData?.teamGameStats as Array<{
+        category: string;
+        awayValue: number | string;
+        homeValue: number | string;
+      }>) || [])
+    : [];
+  const statMap = new Map(rawTeamStats.map((s) => [s.category, s]));
+  const boxscoreStats = !isUpcoming && rawTeamStats.length > 0
+    ? [
+        {
+          label: "Shots on Goal",
+          awayDisp: String(statMap.get("sog")?.awayValue ?? away.sog ?? 0),
+          homeDisp: String(statMap.get("sog")?.homeValue ?? home.sog ?? 0),
+          awayNum: Number(statMap.get("sog")?.awayValue ?? away.sog ?? 0),
+          homeNum: Number(statMap.get("sog")?.homeValue ?? home.sog ?? 0),
+        },
+        {
+          label: "Faceoff Win %",
+          awayDisp: statMap.get("faceoffWinningPctg")
+            ? `${(Number(statMap.get("faceoffWinningPctg")!.awayValue) * 100).toFixed(1)}% (${statMap.get("faceoffWins")?.awayValue || ""})`
+            : "-",
+          homeDisp: statMap.get("faceoffWinningPctg")
+            ? `${(Number(statMap.get("faceoffWinningPctg")!.homeValue) * 100).toFixed(1)}% (${statMap.get("faceoffWins")?.homeValue || ""})`
+            : "-",
+          awayNum: Number(statMap.get("faceoffWinningPctg")?.awayValue ?? 0.5) * 100,
+          homeNum: Number(statMap.get("faceoffWinningPctg")?.homeValue ?? 0.5) * 100,
+        },
+        {
+          label: "Power Play",
+          awayDisp: String(statMap.get("powerPlay")?.awayValue ?? "0/0"),
+          homeDisp: String(statMap.get("powerPlay")?.homeValue ?? "0/0"),
+          awayNum: Number(statMap.get("powerPlayPctg")?.awayValue ?? 0) * 100,
+          homeNum: Number(statMap.get("powerPlayPctg")?.homeValue ?? 0) * 100,
+        },
+        {
+          label: "Hits",
+          awayDisp: String(statMap.get("hits")?.awayValue ?? 0),
+          homeDisp: String(statMap.get("hits")?.homeValue ?? 0),
+          awayNum: Number(statMap.get("hits")?.awayValue ?? 0),
+          homeNum: Number(statMap.get("hits")?.homeValue ?? 0),
+        },
+        {
+          label: "Blocked Shots",
+          awayDisp: String(statMap.get("blockedShots")?.awayValue ?? 0),
+          homeDisp: String(statMap.get("blockedShots")?.homeValue ?? 0),
+          awayNum: Number(statMap.get("blockedShots")?.awayValue ?? 0),
+          homeNum: Number(statMap.get("blockedShots")?.homeValue ?? 0),
+        },
+        {
+          label: "Penalty Minutes",
+          awayDisp: String(statMap.get("pim")?.awayValue ?? 0),
+          homeDisp: String(statMap.get("pim")?.homeValue ?? 0),
+          awayNum: Number(statMap.get("pim")?.awayValue ?? 0),
+          homeNum: Number(statMap.get("pim")?.homeValue ?? 0),
+        },
+      ]
     : [];
 
   return (
@@ -594,6 +662,49 @@ export const LiveBanner: React.FC<LiveBannerProps> = ({
               <p className="text-xs text-slate-500 italic">
                 Three stars will be selected following game conclusion.
               </p>
+            )}
+
+            {/* Live Boxscore Team Stats Comparison */}
+            {boxscoreStats.length > 0 && (
+              <div className="mt-4 pt-3 border-t border-slate-800/80">
+                <h4 className="text-xs uppercase tracking-wider font-bold text-slate-300 mb-2.5 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <BarChart3 className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>Team Boxscore Metrics</span>
+                  </span>
+                  <span className="text-[10px] font-semibold text-slate-400">
+                    {away.abbrev} vs {home.abbrev}
+                  </span>
+                </h4>
+
+                <div className="flex flex-col gap-2">
+                  {boxscoreStats.map((st, i) => {
+                    const total = st.awayNum + st.homeNum;
+                    const awayPct = total > 0 ? Math.round((st.awayNum / total) * 100) : 50;
+                    return (
+                      <div key={i} className="text-[11px]">
+                        <div className="flex items-center justify-between text-slate-200 font-semibold mb-1">
+                          <span className="text-cyan-400 font-mono">{st.awayDisp}</span>
+                          <span className="text-slate-400 text-[10px] uppercase tracking-wider">
+                            {st.label}
+                          </span>
+                          <span className="text-amber-400 font-mono">{st.homeDisp}</span>
+                        </div>
+                        <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden flex">
+                          <div
+                            className="h-full bg-cyan-500 transition-all duration-300"
+                            style={{ width: `${awayPct}%` }}
+                          />
+                          <div
+                            className="h-full bg-amber-500 transition-all duration-300"
+                            style={{ width: `${100 - awayPct}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             )}
           </div>
         </div>

@@ -17,3 +17,19 @@ export async function sendDesktopNotification(title: string, body: string): Prom
     }
   }
 }
+
+export async function updateTrayTooltip(tooltip: string): Promise<void> {
+  try {
+    await invoke("set_tray_tooltip", { tooltip });
+  } catch {
+    // ignore outside Tauri
+  }
+}
+
+export async function syncCloseToTray(enabled: boolean): Promise<void> {
+  try {
+    await invoke("set_close_to_tray", { enabled });
+  } catch {
+    // ignore outside Tauri
+  }
+}

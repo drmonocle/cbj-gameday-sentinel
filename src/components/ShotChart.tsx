@@ -8,6 +8,8 @@ interface ShotChartProps {
   pastGamesData: ShotChartData[];
   seasonCombinedData: ShotChartData | null;
   isLoading: boolean;
+  selectedGameId?: string;
+  onSelectGameId?: (gameId: string) => void;
 }
 
 export const ShotChart: React.FC<ShotChartProps> = ({
@@ -16,8 +18,15 @@ export const ShotChart: React.FC<ShotChartProps> = ({
   pastGamesData,
   seasonCombinedData,
   isLoading,
+  selectedGameId: controlledGameId,
+  onSelectGameId,
 }) => {
-  const [selectedGameId, setSelectedGameId] = useState<string>("active");
+  const [internalGameId, setInternalGameId] = useState<string>("active");
+  const selectedGameId = controlledGameId ?? internalGameId;
+  const setSelectedGameId = (val: string) => {
+    setInternalGameId(val);
+    if (onSelectGameId) onSelectGameId(val);
+  };
   const [filterTeam, setFilterTeam] = useState<"all" | "target" | "opp">("all");
   const [filterType, setFilterType] = useState<"all" | "sog" | "goals" | "missed">("all");
   const [filterDanger, setFilterDanger] = useState<"all" | "high">("all");
@@ -352,11 +361,12 @@ export const ShotChart: React.FC<ShotChartProps> = ({
 
             {/* Circular Clip Paths for Each Goal Scorer */}
             {goalShots.map((shot) => {
+              const shotUid = `${shot.game_id}-${shot.id}`;
               const { px, py } = mapPoint(shot.x, shot.y);
-              const isHovered = hoveredShot?.id === shot.id;
+              const isHovered = hoveredShot?.id === shot.id && hoveredShot?.game_id === shot.game_id;
               const r = isHovered ? 21 : 16;
               return (
-                <clipPath id={`avatar-clip-${shot.id}`} key={`clip-${shot.id}`}>
+                <clipPath id={`avatar-clip-${shotUid}`} key={`clip-${shotUid}`}>
                   <circle cx={px} cy={py} r={r} />
                 </clipPath>
               );
@@ -516,15 +526,16 @@ export const ShotChart: React.FC<ShotChartProps> = ({
 
           {/* 1. REGULAR SHOT MARKERS (Rendered first so goals stay on top) */}
           {regularShots.map((shot) => {
+            const shotUid = `${shot.game_id}-${shot.id}`;
             const { px, py } = mapPoint(shot.x, shot.y);
-            const isHovered = hoveredShot?.id === shot.id;
+            const isHovered = hoveredShot?.id === shot.id && hoveredShot?.game_id === shot.game_id;
 
             if (shot.type === "shot-on-goal") {
               const fillColor = shot.is_cbj ? "#00e5ff" : "#eceff1";
               const strokeColor = shot.is_cbj ? "#002654" : "#37474f";
               return (
                 <circle
-                  key={shot.id}
+                  key={shotUid}
                   cx={px}
                   cy={py}
                   r={isHovered ? 7.5 : 4.5}
@@ -541,7 +552,7 @@ export const ShotChart: React.FC<ShotChartProps> = ({
             // Missed or Blocked shot
             return (
               <circle
-                key={shot.id}
+                key={shotUid}
                 cx={px}
                 cy={py}
                 r={isHovered ? 6 : 3.5}
@@ -558,8 +569,9 @@ export const ShotChart: React.FC<ShotChartProps> = ({
 
           {/* 2. REALISTIC GOAL MARKERS (Rendered with Player Headshots!) */}
           {goalShots.map((shot) => {
+            const shotUid = `${shot.game_id}-${shot.id}`;
             const { px, py } = mapPoint(shot.x, shot.y);
-            const isHovered = hoveredShot?.id === shot.id;
+            const isHovered = hoveredShot?.id === shot.id && hoveredShot?.game_id === shot.game_id;
             const r = isHovered ? 21 : 16;
             const lastName = shot.player.split(" ").slice(-1)[0] || "Goal";
             const headshotUrl =
@@ -569,7 +581,7 @@ export const ShotChart: React.FC<ShotChartProps> = ({
 
             return (
               <g
-                key={shot.id}
+                key={shotUid}
                 className="cursor-pointer transition-transform duration-150"
                 onMouseEnter={() => setHoveredShot(shot)}
                 onMouseLeave={() => setHoveredShot(null)}
@@ -602,7 +614,7 @@ export const ShotChart: React.FC<ShotChartProps> = ({
                     y={py - r}
                     width={r * 2}
                     height={r * 2}
-                    clipPath={`url(#avatar-clip-${shot.id})`}
+                    clipPath={`url(#avatar-clip-${shotUid})`}
                     preserveAspectRatio="xMidYMid slice"
                   />
                 ) : (

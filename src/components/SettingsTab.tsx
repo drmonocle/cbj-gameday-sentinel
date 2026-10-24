@@ -176,6 +176,23 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
           <div className="flex items-center justify-between">
             <div>
               <span className="text-xs font-bold text-slate-200 block">
+                Puck Drop Reminder Alert
+              </span>
+              <span className="text-[11px] text-slate-400">
+                Notify 15 minutes before scheduled puck drop or when pregame starts.
+              </span>
+            </div>
+            <input
+              type="checkbox"
+              checked={settings.puck_drop_reminder}
+              onChange={(e) => onUpdateSettings({ puck_drop_reminder: e.target.checked })}
+              className="w-4 h-4 accent-blue-600 rounded cursor-pointer"
+            />
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <span className="text-xs font-bold text-slate-200 block">
                 Spoiler Free Mode
               </span>
               <span className="text-[11px] text-slate-400">

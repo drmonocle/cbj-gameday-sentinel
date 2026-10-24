@@ -45,8 +45,33 @@ export async function fetchLanding(gameId: number | string): Promise<Record<stri
   return fetchJson<Record<string, unknown>>(`${NHL_API}/gamecenter/${gameId}/landing`);
 }
 
+export async function fetchRightRail(gameId: number | string): Promise<Record<string, unknown>> {
+  return fetchJson<Record<string, unknown>>(`${NHL_API}/gamecenter/${gameId}/right-rail`);
+}
+
 export async function fetchPlayByPlay(gameId: number | string): Promise<Record<string, unknown>> {
   return fetchJson<Record<string, unknown>>(`${NHL_API}/gamecenter/${gameId}/play-by-play`);
+}
+
+// In-memory cache for completed game shot charts (keyed by `${gameId}:${targetAbbrev}`)
+const completedShotChartCache = new Map<string, ShotChartData>();
+
+export async function fetchAndParseShotChart(
+  gameId: number | string,
+  targetId: number,
+  targetAbbrev: string,
+  isCompleted: boolean
+): Promise<ShotChartData> {
+  const cacheKey = `${gameId}:${targetAbbrev}`;
+  if (isCompleted && completedShotChartCache.has(cacheKey)) {
+    return completedShotChartCache.get(cacheKey)!;
+  }
+  const pbp = await fetchPlayByPlay(gameId);
+  const parsed = parsePlayByPlay(pbp, targetId, targetAbbrev);
+  if (isCompleted && parsed.shots.length > 0) {
+    completedShotChartCache.set(cacheKey, parsed);
+  }
+  return parsed;
 }
 
 export async function fetchPlayerBio(playerId: number | string): Promise<PlayerBio> {

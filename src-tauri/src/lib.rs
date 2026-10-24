@@ -36,6 +36,14 @@ fn set_close_to_tray(enabled: bool) {
     CLOSE_TO_TRAY.store(enabled, Ordering::Relaxed);
 }
 
+#[tauri::command]
+fn set_tray_tooltip(app: tauri::AppHandle, tooltip: String) {
+    if let Some(tray) = app.tray_by_id("main-tray") {
+        let safe_tip: String = tooltip.chars().take(120).collect();
+        let _ = tray.set_tooltip(Some(safe_tip));
+    }
+}
+
 /// Shows a native desktop notification (goal alerts, puck drop reminders).
 #[tauri::command]
 fn send_notification(app: tauri::AppHandle, title: String, body: String) {
@@ -92,6 +100,8 @@ fn is_allowed_external_url(parsed: &url::Url) -> bool {
         || host.ends_with(".nhl.com")
         || host == "espn.com"
         || host.ends_with(".espn.com")
+        || host == "fubo.tv"
+        || host.ends_with(".fubo.tv")
         || host == "amazon.com"
         || host.ends_with(".amazon.com")
         || host == "reddit.com"
@@ -197,56 +207,61 @@ fn open_external_url(app: tauri::AppHandle, url: String) -> Result<(), String> {
 }
 
 /// Native HTTPS proxy bypassing browser CORS with SSRF protection, argument injection immunity, and size caps.
+/// Runs asynchronously on Tauri's blocking thread pool so concurrent requests never block the UI/IPC loop.
 #[tauri::command]
-fn fetch_url(url: String) -> Result<String, String> {
-    #[cfg(target_os = "windows")]
-    {
-        use std::process::Command;
-        use std::os::windows::process::CommandExt;
-        const CREATE_NO_WINDOW: u32 = 0x08000000;
+async fn fetch_url(url: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        #[cfg(target_os = "windows")]
+        {
+            use std::os::windows::process::CommandExt;
+            use std::process::Command;
+            const CREATE_NO_WINDOW: u32 = 0x08000000;
 
-        let parsed = url::Url::parse(url.trim()).map_err(|e| format!("Invalid URL: {}", e))?;
-        if parsed.scheme() != "https" {
-            return Err("Security Violation: Only https:// URLs are permitted".into());
+            let parsed = url::Url::parse(url.trim()).map_err(|e| format!("Invalid URL: {}", e))?;
+            if parsed.scheme() != "https" {
+                return Err("Security Violation: Only https:// URLs are permitted".into());
+            }
+
+            let host = parsed.host_str().ok_or_else(|| "URL has no valid host".to_string())?;
+            if !is_allowed_api_host(host) {
+                return Err(format!("Security Violation: Host '{}' is not in the allowed API whitelist", host));
+            }
+
+            let clean_url = parsed.to_string();
+
+            let output = Command::new("curl.exe")
+                .args([
+                    "-L", "-s", "-S",
+                    "--proto", "=https",
+                    "--proto-redir", "=https",
+                    "--max-time", "15",
+                    "--max-filesize", "15728640", // 15 MB cap prevents memory exhaustion
+                    "-H", "User-Agent: CBJGamedaySentinel/2.1",
+                    "-H", "Accept: application/json, text/plain, */*",
+                    "--",
+                    clean_url.as_str(),
+                ])
+                .creation_flags(CREATE_NO_WINDOW)
+                .output()
+                .map_err(|e| format!("Failed to spawn curl.exe: {}", e))?;
+
+            if output.status.success() {
+                let text = String::from_utf8_lossy(&output.stdout).to_string();
+                let clean = text.trim_start_matches('\u{feff}').to_string();
+                Ok(clean)
+            } else {
+                let err = String::from_utf8_lossy(&output.stderr);
+                Err(format!("Curl error: {}", err))
+            }
         }
-
-        let host = parsed.host_str().ok_or_else(|| "URL has no valid host".to_string())?;
-        if !is_allowed_api_host(host) {
-            return Err(format!("Security Violation: Host '{}' is not in the allowed API whitelist", host));
+        #[cfg(not(target_os = "windows"))]
+        {
+            let _ = url;
+            Err("Unsupported OS".into())
         }
-
-        let clean_url = parsed.to_string();
-
-        let output = Command::new("curl.exe")
-            .args([
-                "-L", "-s", "-S",
-                "--proto", "=https",
-                "--proto-redir", "=https",
-                "--max-time", "15",
-                "--max-filesize", "15728640", // 15 MB cap prevents memory exhaustion
-                "-H", "User-Agent: CBJGamedaySentinel/2.0",
-                "-H", "Accept: application/json, text/plain, */*",
-                "--",
-                clean_url.as_str(),
-            ])
-            .creation_flags(CREATE_NO_WINDOW)
-            .output()
-            .map_err(|e| format!("Failed to spawn curl.exe: {}", e))?;
-
-        if output.status.success() {
-            let text = String::from_utf8_lossy(&output.stdout).to_string();
-            let clean = text.trim_start_matches('\u{feff}').to_string();
-            Ok(clean)
-        } else {
-            let err = String::from_utf8_lossy(&output.stderr);
-            Err(format!("Curl error: {}", err))
-        }
-    }
-    #[cfg(not(target_os = "windows"))]
-    {
-        let _ = url;
-        Err("Unsupported OS".into())
-    }
+    })
+    .await
+    .map_err(|e| format!("Task join error: {}", e))?
 }
 
 #[cfg(target_os = "windows")]
@@ -316,6 +331,7 @@ pub fn run() {
             hide_main,
             quit_app,
             set_close_to_tray,
+            set_tray_tooltip,
             send_notification,
             set_autostart,
             load_settings,
@@ -333,7 +349,7 @@ pub fn run() {
 
             let menu = Menu::with_items(app, &[&show_i, &sep1, &horn_i, &sep2, &quit_i])?;
 
-            let tray = TrayIconBuilder::new()
+            let tray = TrayIconBuilder::with_id("main-tray")
                 .menu(&menu)
                 .tooltip("CBJ Gameday Sentinel")
                 .show_menu_on_left_click(false)
