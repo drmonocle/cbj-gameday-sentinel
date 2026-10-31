@@ -43,7 +43,7 @@ Write-Host "==> [5/5] Installing to Windows Local Programs & updating shortcuts.
 Get-Process -Name "CBJGamedaySentinel","cbj-sentinel-tauri" -ErrorAction SilentlyContinue | Stop-Process -Force
 Start-Sleep -Milliseconds 400
 
-$installDir = Join-Path $env:LOCALAPPDATA "Programs\CBJ Gameday Sentinel"
+$installDir = Join-Path $env:LOCALAPPDATA "Programs\CBJGamedaySentinel"
 if (-not (Test-Path $installDir)) {
     New-Item -ItemType Directory -Path $installDir -Force | Out-Null
 }

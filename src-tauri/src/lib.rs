@@ -132,9 +132,9 @@ fn set_autostart(enabled: bool) -> Result<(), String> {
 
         let mut cmd = std::process::Command::new("reg");
         if enabled {
-            // Prefer the canonical installed path in %LOCALAPPDATA%\Programs\CBJ Gameday Sentinel\CBJGamedaySentinel.exe
+            // Prefer the canonical installed path in %LOCALAPPDATA%\Programs\CBJGamedaySentinel\CBJGamedaySentinel.exe
             let canonical_exe = std::env::var_os("LOCALAPPDATA")
-                .map(|la| PathBuf::from(la).join(r"Programs\CBJ Gameday Sentinel\CBJGamedaySentinel.exe"))
+                .map(|la| PathBuf::from(la).join(r"Programs\CBJGamedaySentinel\CBJGamedaySentinel.exe"))
                 .filter(|p| p.exists());
             let exe = match canonical_exe {
                 Some(p) => p,
