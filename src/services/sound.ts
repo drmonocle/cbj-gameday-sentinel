@@ -1,16 +1,19 @@
 /**
- * Arena Goal Horn & Cannon Blast Sound Synthesizer (Web Audio API).
+ * Arena Goal Horn, Cannon Blast & Crowd Celebration Audio Engine.
  *
- * Faithfully reproduces the Nationwide Arena goal horn (~138 Hz fundamental with
- * measured harmonic spectral distribution) followed by the thunderous boom of the
- * replica Civil War cannon with low-frequency reverb.
+ * Plays the authentic recorded Nationwide Arena Goal Horn, Civil War Cannon boom,
+ * and live Columbus crowd celebration (/cbj_goal_horn.mp3), with a procedural
+ * Web Audio API synthesizer fallback.
  */
 
 let audioCtx: AudioContext | null = null;
+let activeHornAudio: HTMLAudioElement | null = null;
 
 function getAudioContext(): AudioContext {
   if (!audioCtx) {
-    const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    const AudioContextClass =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
     audioCtx = new AudioContextClass();
   }
   if (audioCtx.state === "suspended") {
@@ -25,7 +28,39 @@ const HORN_HARMONICS = [
   0.26, 0.01, 0.17, 0.37, 0.1, 0.13, 0.17, 0.12, 0.0, 0.07,
 ];
 
+export function stopGoalHorn(): void {
+  if (activeHornAudio) {
+    try {
+      activeHornAudio.pause();
+      activeHornAudio.currentTime = 0;
+    } catch {
+      // ignore
+    }
+    activeHornAudio = null;
+  }
+}
+
 export function playGoalHorn(volumePercent: number = 80): void {
+  const vol = Math.max(0, Math.min(1, volumePercent / 100));
+  if (vol <= 0) return;
+
+  try {
+    stopGoalHorn();
+    const audio = new Audio("/cbj_goal_horn.mp3");
+    audio.volume = vol;
+    activeHornAudio = audio;
+    audio.play().catch((err) => {
+      console.warn("Real horn audio playback fallback to synth:", err);
+      playSynthesizedGoalHorn(volumePercent);
+    });
+    return;
+  } catch (err) {
+    console.warn("Audio element creation failed, using synth:", err);
+    playSynthesizedGoalHorn(volumePercent);
+  }
+}
+
+export function playSynthesizedGoalHorn(volumePercent: number = 80): void {
   try {
     const ctx = getAudioContext();
     const now = ctx.currentTime;

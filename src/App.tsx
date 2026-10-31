@@ -444,6 +444,7 @@ export const App: React.FC = () => {
           <GamesTab
             team={team}
             schedule={schedule}
+            standings={standings}
             onSelectGameForShots={handleSelectGameForShots}
             spoilerMode={settings.spoiler_mode}
           />

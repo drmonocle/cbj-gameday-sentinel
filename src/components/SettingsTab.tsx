@@ -1,7 +1,7 @@
 import React from "react";
 import { AppSettings, TeamPreset } from "../types";
 import { TEAM_PRESETS } from "../config/teams";
-import { playGoalHorn, playOpponentChime } from "../services/sound";
+import { playGoalHorn, playOpponentChime, stopGoalHorn } from "../services/sound";
 import { Volume2, Bell, EyeOff, Power, HardDrive, HelpCircle, Sparkles } from "lucide-react";
 
 interface SettingsTabProps {
@@ -76,7 +76,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
           </h3>
         </div>
         <p className="text-xs text-slate-400 mb-4">
-          Procedurally synthesized goal horn with authentic arena acoustics and deep cannon blast reverb.
+          Authentic Nationwide Arena goal horn recording with the real Civil War cannon blast, AC/DC salute, and roaring Columbus crowd.
         </p>
 
         <div className="flex flex-col gap-4">
@@ -125,6 +125,12 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                   className="px-3 py-1 rounded bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition cursor-pointer shadow"
                 >
                   🔊 Test Goal Horn
+                </button>
+                <button
+                  onClick={() => stopGoalHorn()}
+                  className="px-2.5 py-1 rounded bg-rose-900/60 hover:bg-rose-700 text-rose-200 text-xs font-semibold border border-rose-700/40 transition cursor-pointer"
+                >
+                  ⏹ Stop
                 </button>
                 <button
                   onClick={() => playOpponentChime(settings.volume)}

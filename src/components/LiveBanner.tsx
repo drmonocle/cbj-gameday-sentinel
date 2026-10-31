@@ -35,6 +35,90 @@ function formatCountdown(startTimeUTC: string): string {
   return `In ${mins}m`;
 }
 
+/**
+ * Zero-overhead NHL Win Probability Engine:
+ * - Pre-game: Blends Bayesian-regressed Pythagorean expectation (GF/GA), Point %,
+ *   and L10 form via Log5 with NHL Home-Ice Advantage (~54.2%).
+ * - Live game: Dynamically adjusts log-odds using current score differential,
+ *   regulation time remaining, shots-on-goal pressure, and power-play state.
+ */
+function computeWinProbability(
+  game: GameInfo,
+  awayStanding?: StandingsRecord,
+  homeStanding?: StandingsRecord,
+  ppText?: string
+): { awayPct: number; homePct: number; isLiveModel: boolean; favoredAbbrev: string } {
+  const getTeamStrength = (s?: StandingsRecord): number => {
+    if (!s || !s.gamesPlayed) return 0.5;
+    const gp = s.gamesPlayed;
+    const gf = s.goalFor ?? 0;
+    const ga = s.goalAgainst ?? 0;
+    const pyth =
+      Math.pow(gf + 12, 2.05) / (Math.pow(gf + 12, 2.05) + Math.pow(ga + 12, 2.05));
+    const ptsPct = (s.points + 10) / (2 * (gp + 10));
+    const l10Gp = (s.l10Wins ?? 0) + (s.l10Losses ?? 0) + (s.l10OtLosses ?? 0);
+    const l10Pct =
+      l10Gp > 0
+        ? (2 * (s.l10Wins ?? 0) + (s.l10OtLosses ?? 0) + 5) / (2 * (l10Gp + 5))
+        : ptsPct;
+    return 0.45 * pyth + 0.35 * ptsPct + 0.2 * l10Pct;
+  };
+
+  const rA = getTeamStrength(awayStanding);
+  const rH = getTeamStrength(homeStanding);
+  const homeIceEdge = 0.542; // Historical NHL home-ice win rate
+
+  const num = rH * (1 - rA) * homeIceEdge;
+  const den = num + rA * (1 - rH) * (1 - homeIceEdge);
+  let pHome = den > 0 ? num / den : 0.54;
+  pHome = Math.max(0.18, Math.min(0.82, pHome));
+
+  const isLive = game.gameState === "LIVE" || game.gameState === "CRIT";
+  if (isLive) {
+    const awayScore = game.awayTeam.score ?? 0;
+    const homeScore = game.homeTeam.score ?? 0;
+    const scoreDiff = homeScore - awayScore;
+
+    const pNum = game.periodDescriptor?.number || 1;
+    const pType = game.periodDescriptor?.periodType || "REG";
+    const secInPeriod = game.clock?.secondsRemaining ?? 600;
+
+    let totalSecRem = 60;
+    if (pType === "REG") {
+      totalSecRem = Math.max(30, (3 - Math.min(3, pNum)) * 1200 + secInPeriod);
+    } else {
+      totalSecRem = Math.max(30, secInPeriod);
+    }
+    const timeFrac = Math.max(0.03, Math.min(1.0, totalSecRem / 3600));
+
+    // Convert pre-game probability to log-odds and decay pre-game prior as clock winds down
+    let logOdds = Math.log(pHome / (1 - pHome)) * Math.pow(timeFrac, 0.65);
+
+    // Goal differential impact scales inversely with square root of remaining time
+    logOdds += scoreDiff * (1.42 / Math.sqrt(timeFrac));
+
+    // Shots on goal territorial pressure
+    const sogDiff = (game.homeTeam.sog ?? 0) - (game.awayTeam.sog ?? 0);
+    logOdds += sogDiff * 0.014 * timeFrac;
+
+    // Power play live boost
+    if (ppText) {
+      if (ppText.includes(`PP ${game.homeTeam.abbrev}`)) logOdds += 0.22;
+      else if (ppText.includes(`PP ${game.awayTeam.abbrev}`)) logOdds -= 0.22;
+    }
+
+    pHome = 1 / (1 + Math.exp(-logOdds));
+    pHome = Math.max(0.01, Math.min(0.99, pHome));
+  }
+
+  const homePct = Math.round(pHome * 1000) / 10;
+  const awayPct = Math.round((100 - homePct) * 10) / 10;
+  const favoredAbbrev =
+    homePct >= awayPct ? game.homeTeam.abbrev : game.awayTeam.abbrev;
+
+  return { awayPct, homePct, isLiveModel: isLive, favoredAbbrev };
+}
+
 export const LiveBanner: React.FC<LiveBannerProps> = ({
   game,
   nextGame,
@@ -99,6 +183,11 @@ export const LiveBanner: React.FC<LiveBannerProps> = ({
       }
     }
   }
+
+  const winProb =
+    isUpcoming || (isLive && !spoilerMode)
+      ? computeWinProbability(displayGame, awayStanding, homeStanding, ppText)
+      : null;
 
   // TV Broadcasts
   const tvNets = (displayGame.tvBroadcasts || [])
@@ -379,8 +468,35 @@ export const LiveBanner: React.FC<LiveBannerProps> = ({
           </div>
         </div>
 
+        {/* Win Probability / Pre-Game Prediction Bar */}
+        {winProb && (
+          <div className="mt-4 pt-3 border-t border-slate-800/80">
+            <div className="flex items-center justify-between text-[11px] font-bold mb-1.5">
+              <span className="text-cyan-400 font-mono">
+                {away.abbrev} {winProb.awayPct.toFixed(1)}%
+              </span>
+              <span className="text-[10px] uppercase tracking-widest text-slate-400 font-semibold">
+                {winProb.isLiveModel ? "⚡ Live Win Probability" : "🎯 Pre-Game Win Projection"}
+              </span>
+              <span className="text-amber-400 font-mono">
+                {winProb.homePct.toFixed(1)}% {home.abbrev}
+              </span>
+            </div>
+            <div className="w-full h-2 bg-slate-900 rounded-full overflow-hidden flex border border-slate-800">
+              <div
+                className="h-full bg-gradient-to-r from-cyan-600 to-cyan-400 transition-all duration-500"
+                style={{ width: `${winProb.awayPct}%` }}
+              />
+              <div
+                className="h-full bg-gradient-to-r from-amber-400 to-amber-600 transition-all duration-500"
+                style={{ width: `${winProb.homePct}%` }}
+              />
+            </div>
+          </div>
+        )}
+
         {/* Footer info: Venue & Broadcasts */}
-        <div className="mt-5 pt-3 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-400">
+        <div className="mt-4 pt-3 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-400">
           <div className="flex items-center gap-2">
             <span>📍 {displayGame.venue?.default || "Arena"}</span>
             {tvNets && (
@@ -484,6 +600,11 @@ export const LiveBanner: React.FC<LiveBannerProps> = ({
                     .slice(0, 2)
                     .join(", ");
 
+                  const gAwayS = standings.find((s) => getStandingAbbrev(s) === g.awayTeam.abbrev);
+                  const gHomeS = standings.find((s) => getStandingAbbrev(s) === g.homeTeam.abbrev);
+                  const gProb = computeWinProbability(g, gAwayS, gHomeS);
+                  const ourWinPct = isHomeGame ? gProb.homePct : gProb.awayPct;
+
                   return (
                     <div
                       key={g.id || idx}
@@ -503,7 +624,7 @@ export const LiveBanner: React.FC<LiveBannerProps> = ({
                           }}
                         />
                         <div>
-                          <div className="flex items-center gap-1.5">
+                          <div className="flex items-center gap-1.5 flex-wrap">
                             <span
                               className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${
                                 isHomeGame
@@ -515,6 +636,16 @@ export const LiveBanner: React.FC<LiveBannerProps> = ({
                             </span>
                             <span className="font-bold text-slate-100">
                               {opp.commonName?.default || opp.name?.default || opp.abbrev}
+                            </span>
+                            <span
+                              className={`text-[10px] font-mono font-bold px-1.5 py-0.2 rounded border ${
+                                ourWinPct >= 50
+                                  ? "bg-emerald-950/60 text-emerald-300 border-emerald-700/40"
+                                  : "bg-slate-800/80 text-slate-300 border-slate-700/50"
+                              }`}
+                              title={`Projected ${team.id} Win Probability`}
+                            >
+                              {team.id} {Math.round(ourWinPct)}%
                             </span>
                             {idx === 0 && (
                               <span className="text-[10px] font-bold text-emerald-400">

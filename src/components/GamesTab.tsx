@@ -1,18 +1,56 @@
 import React, { useState } from "react";
-import { GameInfo, TeamPreset } from "../types";
+import { GameInfo, StandingsRecord, TeamPreset } from "../types";
 import { getTeamLogoUrl } from "../config/teams";
-import { Calendar, CheckCircle2, Clock, Tv, Crosshair, ChevronRight } from "lucide-react";
+import { Calendar, CheckCircle2, Clock, Tv, Crosshair } from "lucide-react";
 
 interface GamesTabProps {
   team: TeamPreset;
   schedule: GameInfo[];
+  standings?: StandingsRecord[];
   onSelectGameForShots: (gameId: number) => void;
   spoilerMode: boolean;
+}
+
+function getStandingAbbrev(s: StandingsRecord): string {
+  return typeof s.teamAbbrev === "object"
+    ? (s.teamAbbrev as { default: string }).default
+    : String(s.teamAbbrev || "");
+}
+
+function projectMatchupWinPct(
+  isHome: boolean,
+  ourStanding?: StandingsRecord,
+  oppStanding?: StandingsRecord
+): number {
+  const getStrength = (s?: StandingsRecord): number => {
+    if (!s || !s.gamesPlayed) return 0.5;
+    const gp = s.gamesPlayed;
+    const gf = s.goalFor ?? 0;
+    const ga = s.goalAgainst ?? 0;
+    const pyth =
+      Math.pow(gf + 12, 2.05) / (Math.pow(gf + 12, 2.05) + Math.pow(ga + 12, 2.05));
+    const ptsPct = (s.points + 10) / (2 * (gp + 10));
+    const l10Gp = (s.l10Wins ?? 0) + (s.l10Losses ?? 0) + (s.l10OtLosses ?? 0);
+    const l10Pct =
+      l10Gp > 0
+        ? (2 * (s.l10Wins ?? 0) + (s.l10OtLosses ?? 0) + 5) / (2 * (l10Gp + 5))
+        : ptsPct;
+    return 0.45 * pyth + 0.35 * ptsPct + 0.2 * l10Pct;
+  };
+
+  const rUs = getStrength(ourStanding);
+  const rOpp = getStrength(oppStanding);
+  const edge = isHome ? 0.542 : 0.458;
+  const num = rUs * (1 - rOpp) * edge;
+  const den = num + rOpp * (1 - rUs) * (1 - edge);
+  const p = den > 0 ? num / den : edge;
+  return Math.round(Math.max(0.18, Math.min(0.82, p)) * 100);
 }
 
 export const GamesTab: React.FC<GamesTabProps> = ({
   team,
   schedule,
+  standings = [],
   onSelectGameForShots,
   spoilerMode,
 }) => {
@@ -228,6 +266,10 @@ export const GamesTab: React.FC<GamesTabProps> = ({
               .map((b) => b.network)
               .join(", ");
 
+            const ourS = standings.find((s) => getStandingAbbrev(s) === team.id);
+            const oppS = standings.find((s) => getStandingAbbrev(s) === them.abbrev);
+            const ourWinPct = projectMatchupWinPct(isHome, ourS, oppS);
+
             return (
               <div
                 key={g.id}
@@ -249,6 +291,16 @@ export const GamesTab: React.FC<GamesTabProps> = ({
                       </span>
                       <span className="text-xs font-bold text-slate-100 uppercase">
                         {them.commonName?.default || them.name?.default || them.abbrev}
+                      </span>
+                      <span
+                        className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border ${
+                          ourWinPct >= 50
+                            ? "bg-emerald-950/60 text-emerald-300 border-emerald-700/40"
+                            : "bg-slate-800/80 text-slate-300 border-slate-700/50"
+                        }`}
+                        title="Projected Win Probability"
+                      >
+                        {team.id} {ourWinPct}%
                       </span>
                     </div>
                     <p className="text-[11px] text-slate-400 font-medium mt-0.5 flex items-center gap-1.5">
