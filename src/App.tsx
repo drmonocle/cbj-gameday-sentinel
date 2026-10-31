@@ -17,7 +17,7 @@ import {
   isCompletedGameStale,
 } from "./services/nhlApi";
 import { playGoalHorn, playOpponentChime } from "./services/sound";
-import { sendDesktopNotification, syncCloseToTray, updateTrayTooltip } from "./services/platform";
+import { sendDesktopNotification, syncAutostart, syncCloseToTray, updateTrayTooltip } from "./services/platform";
 import { Header } from "./components/Header";
 import { LiveBanner } from "./components/LiveBanner";
 import { ShotChart } from "./components/ShotChart";
@@ -64,11 +64,12 @@ export const App: React.FC = () => {
 
   const team: TeamPreset = getTeamPreset(settings.team);
 
-  // Load initial settings and sync close-to-tray state with Rust backend
+  // Load initial settings and sync close-to-tray & autostart state with Rust backend
   useEffect(() => {
     loadAppSettings().then((s) => {
       setSettings(s);
       syncCloseToTray(s.close_to_tray);
+      syncAutostart(s.start_with_windows);
     });
   }, []);
 

@@ -9,7 +9,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   toasts: true,
   puck_drop_reminder: true,
   spoiler_mode: false,
-  start_with_windows: false,
+  start_with_windows: true,
   close_to_tray: true,
   watch: "prime",
   refresh_interval: 20,

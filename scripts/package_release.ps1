@@ -39,4 +39,17 @@ $zipFile = Join-Path $releaseDir "CBJGamedaySentinel_v2.0.0_windows_x64.zip"
 Compress-Archive -Path $destExe -DestinationPath $zipFile -Force
 Write-Host "Zip archive created: $zipFile" -ForegroundColor Green
 
+Write-Host "==> [5/5] Installing to Windows Local Programs & updating shortcuts..." -ForegroundColor Cyan
+Get-Process -Name "CBJGamedaySentinel","cbj-sentinel-tauri" -ErrorAction SilentlyContinue | Stop-Process -Force
+Start-Sleep -Milliseconds 400
+
+$installDir = Join-Path $env:LOCALAPPDATA "Programs\CBJ Gameday Sentinel"
+if (-not (Test-Path $installDir)) {
+    New-Item -ItemType Directory -Path $installDir -Force | Out-Null
+}
+$installedExe = Join-Path $installDir "CBJGamedaySentinel.exe"
+Copy-Item $destExe $installedExe -Force
+Copy-Item (Join-Path $srcTauriDir "icons\icon.ico") (Join-Path $installDir "icon.ico") -Force
+Write-Host "Installed to: $installedExe" -ForegroundColor Green
+
 Write-Host "==> Release packaging complete!" -ForegroundColor Cyan

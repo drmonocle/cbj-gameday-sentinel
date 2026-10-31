@@ -121,9 +121,25 @@ fn set_autostart(enabled: bool) -> Result<(), String> {
         const CREATE_NO_WINDOW: u32 = 0x08000000;
         const RUN_KEY: &str = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run";
 
+        // Remove any legacy Python Startup shortcut if it exists
+        if let Some(appdata) = std::env::var_os("APPDATA") {
+            let legacy_lnk = PathBuf::from(appdata)
+                .join(r"Microsoft\Windows\Start Menu\Programs\Startup\CBJ Gameday Sentinel.lnk");
+            if legacy_lnk.exists() {
+                let _ = std::fs::remove_file(legacy_lnk);
+            }
+        }
+
         let mut cmd = std::process::Command::new("reg");
         if enabled {
-            let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+            // Prefer the canonical installed path in %LOCALAPPDATA%\Programs\CBJ Gameday Sentinel\CBJGamedaySentinel.exe
+            let canonical_exe = std::env::var_os("LOCALAPPDATA")
+                .map(|la| PathBuf::from(la).join(r"Programs\CBJ Gameday Sentinel\CBJGamedaySentinel.exe"))
+                .filter(|p| p.exists());
+            let exe = match canonical_exe {
+                Some(p) => p,
+                None => std::env::current_exe().map_err(|e| e.to_string())?,
+            };
             let exe_str = exe.to_string_lossy();
             if exe_str.contains('"') || exe_str.contains('\n') || exe_str.contains('\r') {
                 return Err("Security Violation: Executable path contains illegal characters".into());
@@ -295,19 +311,24 @@ fn is_another_instance_running() -> bool {
     }
 
     if unsafe { GetLastError() } == ERROR_ALREADY_EXISTS {
-        let win_title: Vec<u16> = OsStr::new("CBJ Gameday Sentinel")
-            .encode_wide()
-            .chain(std::iter::once(0))
-            .collect();
-        let hwnd = unsafe { FindWindowW(std::ptr::null(), win_title.as_ptr()) };
-        if !hwnd.is_null() {
-            unsafe {
-                ShowWindow(hwnd, SW_RESTORE);
-                SetForegroundWindow(hwnd);
-                CloseHandle(handle);
+        let is_minimized = std::env::args().any(|a| a == "--minimized");
+        if !is_minimized {
+            let win_title: Vec<u16> = OsStr::new("CBJ Gameday Sentinel")
+                .encode_wide()
+                .chain(std::iter::once(0))
+                .collect();
+            let hwnd = unsafe { FindWindowW(std::ptr::null(), win_title.as_ptr()) };
+            if !hwnd.is_null() {
+                unsafe {
+                    ShowWindow(hwnd, SW_RESTORE);
+                    SetForegroundWindow(hwnd);
+                }
             }
-            return true;
         }
+        unsafe {
+            CloseHandle(handle);
+        }
+        return true;
     }
     false
 }

@@ -33,3 +33,11 @@ export async function syncCloseToTray(enabled: boolean): Promise<void> {
     // ignore outside Tauri
   }
 }
+
+export async function syncAutostart(enabled: boolean): Promise<void> {
+  try {
+    await invoke("set_autostart", { enabled });
+  } catch {
+    // ignore outside Tauri
+  }
+}
